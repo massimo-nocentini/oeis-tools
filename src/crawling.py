@@ -1,5 +1,5 @@
 
-import socket, json, re, os
+import socket, json, re, os, sys
 
 from contextlib import suppress
 from selectors import DefaultSelector, EVENT_WRITE, EVENT_READ
@@ -8,8 +8,10 @@ from collections import namedtuple, deque
 from itertools import count
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.NOTSET)
 logger = logging.getLogger(__name__)
+
+OEIS_sequenceid_regex = re.compile('(?P<id>A\d{6,6})')
 
 URL = namedtuple('URL', ['host', 'port', 'resource'])
 RestartingUrls = namedtuple('RestartingUrls', ['seen', 'fringe'])
@@ -242,7 +244,7 @@ class fetcher:
 
 class crawler:
 
-    def __init__(self, resources, fetcher_factory, max_tasks=10):
+    def __init__(self, resources, fetcher_factory, max_tasks):
 
         self.resources = resources
         self.max_tasks = max_tasks
@@ -288,8 +290,7 @@ class crawler:
 
 
 def cross_references(xref):
-    regex = re.compile('(?P<id>A\d{6,6})')
-    return {r for references in xref for r in regex.findall(references)}
+    return {r for references in xref for r in OEIS_sequenceid_regex.findall(references)}
 
 def make_resource(oeis_id):
     return r'/search?q=id%3A{}&fmt=json'.format(oeis_id)
@@ -300,7 +301,7 @@ def sets_of_cross_references(doc, sections=['xref']):
             for section in sections]
     return sets
 
-def parse_json(url, content, appender, seen_urls):
+def parse_json(url, content, appender, seen_urls, stubborn=False):
     
     references = set()
 
@@ -319,20 +320,23 @@ def parse_json(url, content, appender, seen_urls):
     except ValueError as e:
         message = 'Generic error for resource {}:\n{}\nRaw content: {}'
         logger.info(message.format(url.resource, e, content))
-        references.add(url.resource)
+        if stubborn: references.add(url.resource)
 
     except json.JSONDecodeError as e:
         message = 'Decoding error for {}:\nException: {}\nRaw content: {}'
         logger.info(message.format(url.resource, e, content))
-        references.add(url.resource)
+        if stubborn: references.add(url.resource)
 
     for ref in references - seen_urls:
         appender(ref)
 
-def urls_already_fetched(subdir='./fetched/', init=set()):
+def lookup_fetched_filenames(subdir): 
+    return {filename[:filename.index('.json')]: subdir + filename 
+            for filename in os.listdir(subdir) if filename.endswith('.json')}
 
-    fetched_resources = {filename[:filename.index('.json')]: subdir + filename 
-                            for filename in os.listdir(subdir) if filename.endswith('.json')}
+def ulrs_to_fetch(subdir, init, restart):
+
+    fetched_resources = lookup_fetched_filenames(subdir) if restart else {}
 
     seen_urls = set()
     initial_urls = set()
@@ -354,23 +358,11 @@ def urls_already_fetched(subdir='./fetched/', init=set()):
 
 #________________________________________________________________________________}}}
 
-selector = DefaultSelector()
 
-def xkcd(loop):
-    
-    def factory(resource, appender):
-        url = URL(host='xkcd.com', port=80, resource=resource)
-        return fetcher(url, selector)
-
-    with suppress(KeyboardInterrupt):
-        crawl_job = crawler(resources={'/353/'}, fetcher_factory=factory, max_tasks=10)
-        loop.run_until_complete(crawl_job.crawl())
-
-def oeis(loop):
-
-    initial_urls = urls_already_fetched(init={'A000045'})
+def oeis(loop, initial_urls, selector, workers):
 
     seen_urls = set()
+
     seen_urls.update(initial_urls.seen)
 
     logger.info('restarting with {} urls in the fringe, having fetched already {} resources.'.format(
@@ -383,7 +375,7 @@ def oeis(loop):
                         resource_key=make_resource)
 
     crawl_job = crawler(resources=initial_urls.fringe, 
-                        fetcher_factory=factory, max_tasks=100)
+                        fetcher_factory=factory, max_tasks=workers)
 
     with suppress(KeyboardInterrupt):
         result, clock = loop.run_until_complete(crawl_job.crawl())
@@ -391,10 +383,57 @@ def oeis(loop):
     fetched_urls = seen_urls - initial_urls.seen
     logger.info('fetched {} resources:\n{}'.format(len(fetched_urls), fetched_urls))
 
-# uncomment the example you want to run:
 
-#xkcd(loop=eventloop(selector))
-oeis(loop=eventloop(selector))
+def handle_cli_arguments():
+
+    import argparse
+
+    def OEIS_sequenceid(seqid):
+        if not OEIS_sequenceid_regex.match(seqid):
+            raise ValueError
+
+    parser = argparse.ArgumentParser(description='OEIS Crawler.')
+
+    parser.add_argument('sequences', metavar='S', nargs='*',
+                        help='Sequence to fetch, given in the form Axxxxxx', type=OEIS_sequenceid)
+    parser.add_argument("--clear-cache", help="Clear cache of sequences", 
+                        action="store_true")
+    parser.add_argument("--restart", help="Add fringes from cache to sequences to fetch", 
+                        action="store_true")
+    parser.add_argument("--workers", help="Degree of parallelism (defaults to 10)", 
+                        type=int, default=10)
+    parser.add_argument("--log-level", help="Logger verbosity (defaults to INFO)",
+                        choices=['DEBUG','INFO','WARNING','ERROR','CRITICAL'], default='INFO')
+    parser.add_argument("--cache-dir", help="Cache directory (defaults to ./fetched/)",
+                        default='./fetched/')
+
+    args = parser.parse_args()
+    return args
 
 
-# Notes _________________________________________________________________________
+if __name__ == "__main__":
+
+    args = handle_cli_arguments()
+
+    cached_sequences = lookup_fetched_filenames(subdir=args.cache_dir)
+
+    if args.clear_cache:
+        removed = 0
+        for key, filename in cached_sequences.items():
+            os.remove(filename) 
+            removed += 1
+        print('{} sequences removed from cache {}'.format(removed, args.cache_dir))
+        sys.exit()
+
+    logger.setLevel(args.log_level)
+
+    initial_urls = ulrs_to_fetch(init=set(args.sequences), subdir=args.cache_dir, restart=args.restart)
+
+    if initial_urls.seen or initial_urls.fringe:
+        selector = DefaultSelector()
+        oeis(loop=eventloop(selector), initial_urls=initial_urls, selector=selector, workers=args.workers)
+    else:
+        print('{} sequences in cache {}'.format(
+            len(cached_sequences), args.cache_dir))
+
+    
