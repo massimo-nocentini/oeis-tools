@@ -408,8 +408,8 @@ def handle_cli_arguments():
                         action="store_true", default=False)
     parser.add_argument("--workers", help="Degree of parallelism (defaults to 10)", 
                         type=int, default=10)
-    parser.add_argument("--log-level", help="Logger verbosity (defaults to INFO)",
-                        choices=['DEBUG','INFO','WARNING','ERROR','CRITICAL'], default='INFO')
+    parser.add_argument("--log-level", help="Logger verbosity (defaults to ERROR)",
+                        choices=['DEBUG','INFO','WARNING','ERROR','CRITICAL'], default='ERROR')
     parser.add_argument("--cache-dir", help="Cache directory (defaults to ./fetched/)",
                         default='./fetched/')
     parser.add_argument("--progress-mark", help="Symbol for fetched event (defaults to ●)", 
@@ -429,12 +429,11 @@ if __name__ == "__main__":
     if args.clear_cache:
         removed = 0
         for sequence in cached_urls.seen:
-            filename = '{}{}.json'.format(args.cache_dir, filename)
+            filename = '{}{}.json'.format(args.cache_dir, sequence)
             os.remove(filename) 
             removed += 1
 
         print('{} sequences removed from cache {}'.format(removed, args.cache_dir))
-        sys.exit()
 
     logger.setLevel(args.log_level)
 
@@ -455,7 +454,7 @@ if __name__ == "__main__":
                                 workers=args.workers,
                                 progress_mark=args.progress_mark)
 
-            print('fetched {} new sequences:\n{}'.format(len(fetched_urls), fetched_urls))
+            print('\nfetched {} new sequences:\n{}'.format(len(fetched_urls), fetched_urls))
         else:
             print('Fringe is a subset of fetched sequences, nothing to fetch')
 
