@@ -285,12 +285,12 @@ class crawler:
 
 #________________________________________________________________________________}}}
 
-
 # OEIS stuff ____________________________________________________________________{{{
 
 
 def cross_references(xref):
-    return {r for references in xref for r in OEIS_sequenceid_regex.findall(references)}
+    return {r   for references in xref 
+                for r in OEIS_sequenceid_regex.findall(references)}
 
 def make_resource(oeis_id):
     return r'/search?q=id%3A{}&fmt=json'.format(oeis_id)
@@ -301,7 +301,7 @@ def sets_of_cross_references(doc, sections=['xref']):
             for section in sections]
     return sets
 
-def parse_json(url, content, appender, seen_urls, stubborn=False):
+def parse_json(url, content, appender, seen_urls, stubborn=False, progress_mark=None):
     
     references = set()
 
@@ -312,11 +312,14 @@ def parse_json(url, content, appender, seen_urls, stubborn=False):
             json.dump(doc, f)
             f.flush()
 
+        if progress_mark:
+            print(progress_mark, end='', flush=True)
+
         seen_urls.add(url.resource)
         logger.info('fetched resource {}'.format(url.resource))
 
         references.update(*sets_of_cross_references(doc))
-
+        
     except ValueError as e:
         message = 'Generic error for resource {}:\n{}\nRaw content: {}'
         logger.info(message.format(url.resource, e, content))
@@ -334,14 +337,15 @@ def lookup_fetched_filenames(subdir):
     return {filename[:filename.index('.json')]: subdir + filename 
             for filename in os.listdir(subdir) if filename.endswith('.json')}
 
-def ulrs_to_fetch(subdir, init, restart):
+def urls_in_cache(subdir):#, init, restart):
 
-    fetched_resources = lookup_fetched_filenames(subdir) if restart else {}
+    fetched_resources = lookup_fetched_filenames(subdir)# if restart else {}
 
     seen_urls = set()
     initial_urls = set()
 
     for resource, filename in fetched_resources.items():
+
         with open(filename) as f:
             doc = json.loads(f.read())  
 
@@ -351,15 +355,11 @@ def ulrs_to_fetch(subdir, init, restart):
         # we consider its fringe as starting set of resources to fetch
         initial_urls.update(*sets_of_cross_references(doc))
 
-    if not seen_urls:
-        initial_urls.update(init)
+    #initial_urls.update(init)
 
     return RestartingUrls(seen=seen_urls, fringe=initial_urls)
 
-#________________________________________________________________________________}}}
-
-
-def oeis(loop, initial_urls, selector, workers):
+def oeis(loop, initial_urls, selector, workers, progress_mark):
 
     seen_urls = set()
 
@@ -370,8 +370,9 @@ def oeis(loop, initial_urls, selector, workers):
 
     def factory(resource, appender):
         url = URL(host='oeis.org', port=80, resource=resource)
+        kwds = {'appender': appender, 'seen_urls': seen_urls, 'progress_mark': progress_mark}
         return fetcher( url, selector, 
-                        done=partial(parse_json, appender=appender, seen_urls=seen_urls), 
+                        done=partial(parse_json, **kwds), 
                         resource_key=make_resource)
 
     crawl_job = crawler(resources=initial_urls.fringe, 
@@ -381,8 +382,12 @@ def oeis(loop, initial_urls, selector, workers):
         result, clock = loop.run_until_complete(crawl_job.crawl())
 
     fetched_urls = seen_urls - initial_urls.seen
-    logger.info('fetched {} resources:\n{}'.format(len(fetched_urls), fetched_urls))
 
+    return fetched_urls
+
+#________________________________________________________________________________}}}
+
+# argument parsing {{{
 
 def handle_cli_arguments():
 
@@ -391,49 +396,67 @@ def handle_cli_arguments():
     def OEIS_sequenceid(seqid):
         if not OEIS_sequenceid_regex.match(seqid):
             raise ValueError
+        return seqid
 
     parser = argparse.ArgumentParser(description='OEIS Crawler.')
 
     parser.add_argument('sequences', metavar='S', nargs='*',
                         help='Sequence to fetch, given in the form Axxxxxx', type=OEIS_sequenceid)
-    parser.add_argument("--clear-cache", help="Clear cache of sequences", 
+    parser.add_argument("--clear-cache", help="Clear cache of sequences, according to --cache-dir", 
                         action="store_true")
-    parser.add_argument("--restart", help="Add fringes from cache to sequences to fetch", 
-                        action="store_true")
+    parser.add_argument("--restart", help="Build fringe from cached sequences (defaults to False)", 
+                        action="store_true", default=False)
     parser.add_argument("--workers", help="Degree of parallelism (defaults to 10)", 
                         type=int, default=10)
     parser.add_argument("--log-level", help="Logger verbosity (defaults to INFO)",
                         choices=['DEBUG','INFO','WARNING','ERROR','CRITICAL'], default='INFO')
     parser.add_argument("--cache-dir", help="Cache directory (defaults to ./fetched/)",
                         default='./fetched/')
+    parser.add_argument("--progress-mark", help="Symbol for fetched event (defaults to ●)", 
+                        default='●')
 
     args = parser.parse_args()
     return args
 
+# }}}
 
 if __name__ == "__main__":
 
     args = handle_cli_arguments()
 
-    cached_sequences = lookup_fetched_filenames(subdir=args.cache_dir)
+    cached_urls = urls_in_cache(subdir=args.cache_dir)
 
     if args.clear_cache:
         removed = 0
-        for key, filename in cached_sequences.items():
+        for sequence in cached_urls.seen:
+            filename = '{}{}.json'.format(args.cache_dir, filename)
             os.remove(filename) 
             removed += 1
+
         print('{} sequences removed from cache {}'.format(removed, args.cache_dir))
         sys.exit()
 
     logger.setLevel(args.log_level)
 
-    initial_urls = ulrs_to_fetch(init=set(args.sequences), subdir=args.cache_dir, restart=args.restart)
+    if not args.sequences and not args.restart:
+        print('{} sequences in cache {}\n{} sequences in fringe for restarting'.format(
+            len(cached_urls.seen), args.cache_dir, len(cached_urls.fringe)))
+    else:     
+        if not args.restart:  
+            cached_urls.fringe.clear()
 
-    if initial_urls.seen or initial_urls.fringe:
-        selector = DefaultSelector()
-        oeis(loop=eventloop(selector), initial_urls=initial_urls, selector=selector, workers=args.workers)
-    else:
-        print('{} sequences in cache {}'.format(
-            len(cached_sequences), args.cache_dir))
+        cached_urls.fringe.update(set(args.sequences))
+
+        if not cached_urls.fringe.issubset(cached_urls.seen):
+            selector = DefaultSelector()
+            fetched_urls = oeis(loop=eventloop(selector), 
+                                initial_urls=cached_urls, 
+                                selector=selector, 
+                                workers=args.workers,
+                                progress_mark=args.progress_mark)
+
+            print('fetched {} new sequences:\n{}'.format(len(fetched_urls), fetched_urls))
+        else:
+            print('Fringe is a subset of fetched sequences, nothing to fetch')
 
     
