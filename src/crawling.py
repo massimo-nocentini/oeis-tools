@@ -108,11 +108,7 @@ class crawler:
 
             resource = await self.q.get()
 
-            def appender(referenced_resource):
-                #if referenced_resource not in self.q: 
-                    self.q.put_nowait(referenced_resource)
-
-            await self.fetcher_factory(resource, appender).fetch()
+            await self.fetcher_factory(resource, appender=self.q.put_nowait).fetch()
             
             self.q.task_done()
 
@@ -171,9 +167,9 @@ def lookup_fetched_filenames(subdir):
     return {filename[:filename.index('.json')]: subdir + filename 
             for filename in os.listdir(subdir) if filename.endswith('.json')}
 
-def urls_in_cache(subdir):#, init, restart):
+def urls_in_cache(subdir):
 
-    fetched_resources = lookup_fetched_filenames(subdir)# if restart else {}
+    fetched_resources = lookup_fetched_filenames(subdir)
 
     seen_urls = set()
     initial_urls = set()
@@ -189,9 +185,7 @@ def urls_in_cache(subdir):#, init, restart):
         # we consider its fringe as starting set of resources to fetch
         initial_urls.update(*sets_of_cross_references(doc))
 
-    #initial_urls.update(init)
-
-    return RestartingUrls(seen=seen_urls, fringe=initial_urls)
+    return RestartingUrls(seen=seen_urls, fringe=initial_urls-seen_urls)
 
 def oeis(loop, initial_urls, workers, progress_mark):
 
@@ -208,7 +202,8 @@ def oeis(loop, initial_urls, workers, progress_mark):
         return fetcher( url, done=partial(parse_json, **kwds), resource_key=make_resource)
 
     crawl_job = crawler(resources=initial_urls.fringe, 
-                        fetcher_factory=factory, max_tasks=workers)
+                        fetcher_factory=factory, 
+                        max_tasks=workers)
 
     with suppress(KeyboardInterrupt):
         loop.run_until_complete(crawl_job.crawl())
@@ -281,9 +276,8 @@ if __name__ == "__main__":
             cached_urls.fringe.clear()
 
         cached_urls.fringe.update(set(args.sequences))
-        cached_urls.fringe.difference_update(cached_urls.seen)
 
-        if cached_urls.fringe:
+        if not cached_urls.fringe.issubset(cached_urls.seen):
             fetched_urls = oeis(loop=loop, 
                                 initial_urls=cached_urls, 
                                 workers=args.workers,
