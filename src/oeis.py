@@ -69,21 +69,8 @@ def merge_splitted_text(lst):
 
 # }}}
     
-# BUILDERS {{{
+# LIST and TABLE data representations {{{
 
-class head_builder:
-
-    def __call__(self, doc):
-        head = r"<div align='center'><b><a href='http://oeis.org/A{:06d}'>A{:06d}</a></b>: {}<br></div>".format(
-                doc['number'], doc['number'], doc['name'], ) + "\n\nby {}".format(doc['author'])
-        return head
-        
-class keyword_builder:
-    
-    def __call__(self, doc):
-        keyword = "\n_Keywords_: `{}`".format(doc['keyword'])
-        return keyword
-        
 class AbstractData:
 
     def __init__(self, upper_limit):
@@ -103,7 +90,8 @@ $$
 \end{env}
 $$
         '''
-        nats_header = [str(i) for i in range(int(doc['offset'].split(',')[0]), len(seq))]
+        start = int(doc['offset'].split(',')[0])
+        nats_header = [str(i) for i in range(start, len(seq))]
         kwds = {
             'env':'{array}', 
             'nel':'c'*len(seq), 
@@ -146,6 +134,24 @@ $$
             'rows': r'\\'.join(rows)
         }
         return array_template.format(**kwds)
+
+# }}}
+
+# BUILDERS {{{
+
+class head_builder:
+
+    def __call__(self, doc):
+        head = r"<div align='center'><b><a href='http://oeis.org/A{:06d}'>A{:06d}</a></b>: {}<br></div>".format(
+                doc['number'], doc['number'], doc['name'], ) + "\n\nby {}".format(doc['author'])
+        return head
+        
+
+class keyword_builder:
+    
+    def __call__(self, doc):
+        keyword = "\n_Keywords_: `{}`".format(doc['keyword'])
+        return keyword
 
 
 class data_builder:
