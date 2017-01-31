@@ -53,6 +53,9 @@ class notebook(interface):
 
 class console(interface):
 
+    def __init__(self, width=80):
+        self.width = width
+
     def select(self, recv):
         return recv.for_console
 

@@ -39,10 +39,19 @@ $$
         }
         return array_template.format(**kwds)
         
+    def for_console(self, cli, doc):
+
+        from sympy import Matrix, pretty
+
+        seq = doc['data'].split(',')[:self.upper_limit]
+
+        L = Matrix(1, self.upper_limit, lambda _, j: int(seq[j]))
+
+        return pretty(L)
 
 class TableData(AbstractData):
 
-    def for_notebook(self, nb):
+    def for_notebook(self, nb, doc):
 
         n, k = self.upper_limit
         seq = doc['data'].split(',')
@@ -73,17 +82,37 @@ $$
         }
         return array_template.format(**kwds)
 
+    def for_console(self, cli, doc):
+
+        from sympy import Matrix, pretty
+
+        n, k = self.upper_limit
+        seq = doc['data'].split(',')
+
+        M = Matrix(n, k, lambda i, j: int(seq[i*(i+1)//2 + j]) if j <= i else 0)
+
+        return pretty(M)
+
 # }}}
 
 # BUILDERS {{{
 
 class head_builder:
 
+    def __init__(self, interface):
+        self.interface = interface
+
     def __call__(self, doc):
+        return self.interface.dispatch(on=self, payload={'doc': doc})
+
+    def for_notebook(self, nb, doc):
         head = r"<div align='center'><b><a href='http://oeis.org/A{:06d}'>A{:06d}</a></b>: {}<br></div>".format(
                 doc['number'], doc['number'], doc['name'], ) + "\n\nby {}".format(doc['author'])
         return head
         
+    def for_console(self, cli, doc):
+        head = '\n{}\n\nby {}'.format(doc['name'], doc['author'])
+        return head
 
 class keyword_builder:
     
@@ -187,13 +216,6 @@ class reference_builder(content_builder):
 
 # }}}
     
-class text_handler:
-
-    def for_notebook(self, nb):
-        return seqid_to_ahref
-
-    def for_console(self, cli):
-        return functools.partial(textwrap.wrap, width=cli.width, replace_whitespace=False)
 
 def pretty_print(doc, 
                  interface,
@@ -211,7 +233,7 @@ def pretty_print(doc,
     if not data_representation:
         data_representation = TableData(upper_limit=(10,10)) if 'tabl' in doc['keyword'] else ListData(upper_limit=15)
 
-    builders = [head_builder(), 
+    builders = [head_builder(interface), 
                 keyword_builder(), 
                 data_builder(interface, data_representation)] if preamble else []
     
@@ -300,5 +322,14 @@ class oeis_results_composer:
 
     def for_console(self, cli):
         dashes = '-' * cli.width
-        return ('\n' + dashes).join(self.results)
+        finished = (dashes + '\n').join(self.results)
+        print(finished)
+        #return finished
 
+class text_handler:
+
+    def for_notebook(self, nb):
+        return seqid_to_ahref
+
+    def for_console(self, cli):
+        return functools.partial(textwrap.fill, width=cli.width, replace_whitespace=False)
