@@ -28,6 +28,11 @@ def fetch_oeis_payload( payload,
 
     return then(doc, GET_result) if callable(then) else doc
 
+def OEIS_sequenceid(seqid):
+    if not Axxxxxx_regex.match(seqid):
+        raise ValueError
+
+    return seqid
 
 def seqid_to_ahref(text):
     """
@@ -53,8 +58,9 @@ class notebook(interface):
 
 class console(interface):
 
-    def __init__(self, width=80):
+    def __init__(self, width=80, print_results=True):
         self.width = width
+        self.print_results = print_results
 
     def select(self, recv):
         return recv.for_console

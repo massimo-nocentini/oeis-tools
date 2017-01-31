@@ -216,6 +216,11 @@ class reference_builder(content_builder):
 
 # }}}
     
+default_comment_predicate=lambda i, c: True
+default_formula_predicate=lambda i, c: True
+default_xref_predicate=lambda i, c: True
+default_link_predicate=lambda i, c: False and "broken link" not in c
+default_reference_predicate=lambda i, c: False
 
 def pretty_print(doc, 
                  interface,
@@ -230,8 +235,8 @@ def pretty_print(doc,
                  link=lambda i, c: False and "broken link" not in c,
                  reference=lambda i, c: False):
     
-    if not data_representation:
-        data_representation = TableData(upper_limit=(10,10)) if 'tabl' in doc['keyword'] else ListData(upper_limit=15)
+    if not isinstance(data_representation, AbstractData):
+        data_representation = TableData(upper_limit=data_representation['table']) if 'tabl' in doc['keyword'] else ListData(upper_limit=data_representation['list'])
 
     builders = [head_builder(interface), 
                 keyword_builder(), 
@@ -305,7 +310,10 @@ def search( A_id=None, seq=None, query=None, interface=notebook(),
                 payload={"fmt": "json", "start": start, "q": ' '.join(query_components)},  
                 then=possible_matchings if only_possible_matchings else make_searchable, 
                 network_error_handler=connection_error, 
-                json_decoding_error_handler=json_error)
+                json_decoding_error_handler=json_error,
+                progress_indicator=None)
+
+# DISPATCHING {{{
 
 class oeis_results_composer:
 
@@ -323,8 +331,10 @@ class oeis_results_composer:
     def for_console(self, cli):
         dashes = '-' * cli.width
         finished = (dashes + '\n').join(self.results)
-        print(finished)
-        #return finished
+        if cli.print_results:
+            print(finished)
+        else: 
+            return finished
 
 class text_handler:
 
@@ -333,3 +343,106 @@ class text_handler:
 
     def for_console(self, cli):
         return functools.partial(textwrap.fill, width=cli.width, replace_whitespace=False)
+
+# }}}
+
+# argument parsing {{{
+
+def handle_cli_arguments():
+
+    import argparse
+
+    def list_or_set(seq_as_str):
+        seq = eval(seq_as_str)
+        if isinstance(seq, (list, set)):
+            return seq
+        else:
+            raise ValueError
+
+
+    class eval_action(argparse.Action):
+    
+        def __call__(self, parser, namespace, values, option_string, **kwds): 
+            ''' https://docs.python.org/3/library/argparse.html#action-classes '''
+            user_dict = eval(values)
+            if isinstance(user_dict, dict):
+                namespace.upper_limit.update(user_dict)
+
+    def make_eval_lambda_action(fieldname):
+
+        class eval_lambda_action(argparse.Action):
+
+            def __call__(self, parser, namespace, values, option_string, **kwds): 
+                lambda_expr = eval(values)
+                if callable(lambda_expr):
+                    setattr(namespace, fieldname, lambda_expr)
+
+        return eval_lambda_action
+
+
+
+    parser = argparse.ArgumentParser(description='OEIS Pretty Printer.')
+
+    parser.add_argument('--id', help='Sequence id, given in the form Axxxxxx', type=OEIS_sequenceid)
+    parser.add_argument('--seq', help='Literal sequence, ordered \'[...]\' or presence \'{...}\' ', type=list_or_set)
+    parser.add_argument('--query', help='Open query for plain search, in the form \'...\'')
+    parser.add_argument("--force-table-repr", help="Force matrix repr of data (defaults to False)", 
+                        action="store_true", default=False)
+    parser.add_argument("--start-page", metavar='S', help="Start from result at position 10*S  (defaults to 0)",
+                        type=int, default=0)
+    parser.add_argument("--max-results", metavar='R', help="Pretty print the former R results (defaults to 5)",
+                        type=int, default=5)
+
+    parser.add_argument("--data-only", help="Show only data repr and preamble (defaults to False)", 
+                        action="store_true", default=False)
+    parser.add_argument('--upper-limit', metavar='U',
+                        help='Upper limit for data repr: U is a dict \'{"list":i, "table":(r, c)}\' where i, r and c are ints (defaults to i=15, r=10 and c=10), respectively)', 
+                        action=eval_action, default={'list':15, 'table':(10,10)})
+
+    parser.add_argument('--comment-filter', metavar='C', 
+                        help='Apply filter C to comments, where C is Python `lambda` predicate \'lambda i,c: ...\' referring to i-th comment c',
+                        default=default_comment_predicate, action=make_eval_lambda_action(fieldname='comment_filter'))
+    parser.add_argument('--formula-filter', metavar='F', 
+                        help='Apply filter F to formulae, where F is Python `lambda` predicate \'lambda i,f: ...\' referring to i-th formula f',
+                        default=default_formula_predicate, action=make_eval_lambda_action(fieldname='formula_filter'))
+    parser.add_argument('--xrefs-filter', metavar='X', 
+                        help='Apply filter X to cross refs, where X is Python `lambda` predicate \'lambda i,x: ...\' referring to i-th xref x',
+                        default=default_xref_predicate, action=make_eval_lambda_action(fieldname='xrefs_filter'))
+    parser.add_argument('--link-filter', metavar='L', 
+                        help='Apply filter L to links, where L is Python `lambda` predicate \'lambda i,l: ...\' referring to i-th link l',
+                        default=default_link_predicate, action=make_eval_lambda_action(fieldname='link_filter'))
+    parser.add_argument('--cite-filter', metavar='R', 
+                        help='Apply filter R to citation, where R is Python `lambda` predicate \'lambda i,r: ...\' referring to i-th citation r',
+                        default=default_reference_predicate, action=make_eval_lambda_action(fieldname='cite_filter'))
+
+    args = parser.parse_args()
+    return args
+
+# }}}
+
+# main {{{
+
+if __name__ == "__main__":
+
+    args = handle_cli_arguments()
+
+    searchable = search(A_id=args.id, seq=args.seq, query=args.query, 
+                        interface=console(print_results=False), 
+                        start=args.start_page, 
+                        max_results=args.max_results, 
+                        table=args.force_table_repr)
+
+    searchable = functools.partial( searchable,
+                                    data_representation=args.upper_limit,
+                                    data_only=args.data_only,
+                                    comment=args.comment_filter if callable(args.comment_filter) else eval(args.comment_filter),
+                                    formula=args.formula_filter,
+                                    xref=args.xrefs_filter,
+                                    link=args.link_filter,
+                                    reference=args.cite_filter)
+    
+    results = searchable()
+
+    print(results)
+
+# }}}    
