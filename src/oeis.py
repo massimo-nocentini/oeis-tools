@@ -1,73 +1,8 @@
 
-import threading, re, json, time, textwrap, functools
 
-from itertools import count
-from collections import defaultdict
-from multiprocessing.dummy import Pool as ThreadPool
-from requests import get
+import json, textwrap, functools
 
-Axxxxxx_regex = re.compile('(?P<id>A\d{6,6})')
-
-# FETCHER and UTILS {{{
-
-def fetch_payload(  payload, 
-                    then=None,
-                    network_error_handler=lambda exc: None,
-                    json_decoding_error_handler=lambda GET_result, exc: None,
-                    progress_indicator='●'):
-
-    try: 
-        GET_result = get("https://oeis.org/search", params=payload,)
-    except Exception as e: 
-        return network_error_handler(e)
-
-    try:
-        doc = GET_result.json()
-
-        if 'results' not in doc or not doc['results']: 
-            doc['results'] = []
-
-        print(progress_indicator if progress_indicator else '', end='')
-
-    except Exception as e:
-        return json_decoding_error_handler(e, GET_result)
-
-    return then(doc, GET_result) if callable(then) else doc
-
-
-def promote_id_anchors(text):
-    """
-    Return a new string where each occurrence of a sequence ref `Axxxxxx` replaced as `<a>` tag.
-    """
-    return Axxxxxx_regex.sub(r'<a href="http://oeis.org/\g<id>">\g<id></a>', text)
-
-        
-def merge_splitted_text(lst):
-    """
-    Returns a new list where each splitted text in `lst` is joined into a single line of text.
-    """
-
-    merged = []
-
-    i = 0
-    while i < len(lst):
-
-        if '(Start)' in lst[i] or '(start)' in lst[i]:
-            j = i+1
-            while j < len(lst) and not ('(End)' in lst[j] or '(end)' in lst[j]): j += 1
-            joiner = "\n       - "
-            #joiner = "\n<br>"
-            merged.append(joiner.join(lst[i:j if j >= len(lst) or lst[j] == '(End)' else j+1])
-                          .replace('(Start)', '').replace('(start)', '')
-                          .replace('(End)', '').replace('(end)', ''))
-            i = j+1
-        else:
-            merged.append(lst[i])
-            i += 1
-
-    return merged
-
-# }}}
+from commons import *
     
 # LIST and TABLE data representations {{{
 
@@ -76,9 +11,12 @@ class AbstractData:
     def __init__(self, upper_limit):
         self.upper_limit = upper_limit
 
+    def __call__(self, doc, interface):
+        return interface.dispatch(on=self, payload={'doc':doc})
+
 class ListData(AbstractData):
 
-    def __call__(self, caller, doc):
+    def for_notebook(self, nb, doc):
 
         seq = doc['data'].split(',')[:self.upper_limit]
         array_template = r'''
@@ -104,7 +42,7 @@ $$
 
 class TableData(AbstractData):
 
-    def __call__(self, caller, doc):
+    def for_notebook(self, nb):
 
         n, k = self.upper_limit
         seq = doc['data'].split(',')
@@ -156,26 +94,50 @@ class keyword_builder:
 
 class data_builder:
     
-    def __init__(self, representation):
+    def __init__(self, interface, representation):
+        self.interface = interface
         self.representation = representation
     
     def __call__(self, doc):
-
-        data = "\n_Data_:\n{}".format(self.representation(self, doc))
+        data = "\n_Data_:\n{}".format(self.representation(doc, self.interface))
         return data
 
     
 class content_builder:
     
-    def __init__(self, filter_pred):
+    def __init__(self, filter_pred, promoter):
         self.filter_pred = filter_pred
+        self.promoter = promoter
     
-    def __call__(self, content):
-        mapped = map(lambda pair: pair[1],
-                     filter(lambda pair: self.filter_pred(pair[0], pair[1].lower()), 
-                            zip(count(), map(promote_id_anchors, merge_splitted_text(content)))))
-        return list(mapped)
-    
+    def process(self, content):
+        
+        processed = map(self.promoter, self.merge_splitted_text(content))
+        return [c for i, c in enumerate(processed) if self.filter_pred(i, c)]
+
+    def merge_splitted_text(self, lst):
+        """
+        Returns a new list where each splitted text in `lst` is joined into a single line of text.
+        """
+
+        merged = []
+
+        i = 0
+        while i < len(lst):
+
+            if '(Start)' in lst[i] or '(start)' in lst[i]:
+                j = i+1
+                while j < len(lst) and not ('(End)' in lst[j] or '(end)' in lst[j]): j += 1
+                joiner = "\n       - "
+                #joiner = "\n<br>"
+                merged.append(joiner.join(lst[i:j if j >= len(lst) or lst[j] == '(End)' else j+1])
+                              .replace('(Start)', '').replace('(start)', '')
+                              .replace('(End)', '').replace('(end)', ''))
+                i = j+1
+            else:
+                merged.append(lst[i])
+                i += 1
+
+        return merged
 
 class comment_builder(content_builder):
     
@@ -183,7 +145,7 @@ class comment_builder(content_builder):
         
         if 'comment' not in doc: return ""
         
-        comments = super(comment_builder, self).__call__(doc['comment'])
+        comments = self.process(doc['comment'])
         return ("\n_Comments_:\n   - " + "\n   - ".join(comments)) if comments else ""
 
 class formula_builder(content_builder):
@@ -192,7 +154,7 @@ class formula_builder(content_builder):
         
         if 'formula' not in doc: return ""
         
-        formulae = super(formula_builder, self).__call__(doc['formula'])
+        formulae = self.process(doc['formula'])
         return ("\n_Formulae_:\n   - " + "\n   - ".join(formulae)) if formulae else ""
     
 class xref_builder(content_builder):
@@ -201,7 +163,7 @@ class xref_builder(content_builder):
         
         if 'xref' not in doc: return ""
         
-        xrefs = super(xref_builder, self).__call__(doc['xref'])
+        xrefs = self.process(doc['xref'])
         return ("\n_Cross references_:\n   - " + "\n   - ".join(xrefs)) if xrefs else ""
 
 class link_builder(content_builder):
@@ -210,7 +172,8 @@ class link_builder(content_builder):
         
         if 'link' not in doc: return ""
         
-        links = super(link_builder, self).__call__(doc['link'])
+        links = self.process(doc['link'])
+
         return ("\n_Links_:\n   - " + "\n   - ".join(links)) if links else ""
 
 class reference_builder(content_builder):
@@ -219,18 +182,26 @@ class reference_builder(content_builder):
         
         if 'reference' not in doc: return ""
         
-        references = super(reference_builder, self).__call__(doc['reference'])
+        references = self.process(doc['reference'])
         return ("\n_References_:\n   - " + "\n   - ".join(references)) if references else ""
 
 # }}}
     
+class text_handler:
+
+    def for_notebook(self, nb):
+        return seqid_to_ahref
+
+    def for_console(self, cli):
+        return functools.partial(textwrap.wrap, width=cli.width, replace_whitespace=False)
+
 def pretty_print(doc, 
+                 interface,
                  data_only=False,
                  head=None,
                  keyword=None, 
                  preamble=True,
                  data_representation=None, 
-                 #wrapper=functools.partial(textwrap.wrap, width=80, replace_whitespace=False),   
                  comment=lambda i, c: True,
                  formula=lambda i, c: True,
                  xref=lambda i, c: True,
@@ -242,14 +213,15 @@ def pretty_print(doc,
 
     builders = [head_builder(), 
                 keyword_builder(), 
-                data_builder(representation=data_representation)] if preamble else []
+                data_builder(interface, data_representation)] if preamble else []
     
     if not data_only:
-        builders.extend([comment_builder(filter_pred=comment), 
-                         formula_builder(filter_pred=formula), 
-                         xref_builder(filter_pred=xref),
-                         link_builder(filter_pred=link), 
-                         reference_builder(filter_pred=reference)])
+        handler = interface.dispatch(on=text_handler())
+        builders.extend([comment_builder(filter_pred=comment, promoter=handler), 
+                         formula_builder(filter_pred=formula, promoter=handler), 
+                         xref_builder(filter_pred=xref, promoter=handler),
+                         link_builder(filter_pred=link, promoter=handler), 
+                         reference_builder(filter_pred=reference, promoter=handler)])
     
     paragraphs = [paragraph 
                     for builder in builders 
@@ -258,10 +230,9 @@ def pretty_print(doc,
     return "\n".join(paragraphs)
 
 
-def search( A_id=None, seq=None, query="",
-            start=0, max_results=None, table=False, xref=[], only_possible_matchings=False, **kwds):
-
-    from IPython.display import Markdown
+def search( A_id=None, seq=None, query=None, interface=notebook(),
+            start=0, max_results=None, table=False, xref=[], 
+            only_possible_matchings=False, **kwds):
 
     query_components = [] # a list of query components, as strings to be joined later
 
@@ -287,11 +258,12 @@ def search( A_id=None, seq=None, query="",
     def make_searchable(doc, GET_result):
 
         def searchable(**pp_kwds):
-            results_description = r"_Results for query: <a href='{url}'>{url}</a>_<br><hr>".format(url=GET_result.url)
-            inner_results = [pretty_print(result, **pp_kwds) 
+
+            results = [pretty_print(result, interface, **pp_kwds) 
                                 for i, result in enumerate(doc['results']) 
                                 if not max_results or i < max_results]
-            return Markdown(results_description + "\n<hr>".join(inner_results))
+
+            return interface.dispatch(on=oeis_results_composer(results, doc, GET_result))
 
         return searchable
 
@@ -307,10 +279,26 @@ def search( A_id=None, seq=None, query="",
 
         return searchable
 
-    return fetch_payload(payload={"fmt": "json", "start": start, "q": ' '.join(query_components)},  
-                         then=possible_matchings if only_possible_matchings else make_searchable,
-                         network_error_handler=connection_error,
-                         json_decoding_error_handler=json_error)
+    return fetch_oeis_payload(
+                payload={"fmt": "json", "start": start, "q": ' '.join(query_components)},  
+                then=possible_matchings if only_possible_matchings else make_searchable, 
+                network_error_handler=connection_error, 
+                json_decoding_error_handler=json_error)
 
+class oeis_results_composer:
 
+    def __init__(self, results, doc, GET_result):
+        self.results = results
+        self.doc = doc
+        self.GET_result = GET_result
+
+    def for_notebook(self, nb):
+        from IPython.display import Markdown
+        results_description = r"_Results for query: <a href='{url}'>{url}</a>_<br><hr>".format(
+            url=self.GET_result.url)
+        return Markdown(results_description + "\n<hr>".join(self.results))
+
+    def for_console(self, cli):
+        dashes = '-' * cli.width
+        return ('\n' + dashes).join(self.results)
 
