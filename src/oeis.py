@@ -84,12 +84,18 @@ $$
 
     def for_console(self, cli, doc):
 
-        from sympy import Matrix, pretty
+        from sympy import Matrix, pretty, IndexedBase
 
         n, k = self.upper_limit
         seq = doc['data'].split(',')
+        d = IndexedBase('d')
 
-        M = Matrix(n, k, lambda i, j: int(seq[i*(i+1)//2 + j]) if j <= i else 0)
+        def coeff(i, j):
+            if i < j: return 0
+            index = i*(i+1)//2 + j
+            return seq[index] if index < len(seq) else d[i, j]
+
+        M = Matrix(n, k, coeff)
 
         return pretty(M)
 
@@ -99,8 +105,9 @@ $$
 
 class head_builder:
 
-    def __init__(self, interface):
+    def __init__(self, interface, handler):
         self.interface = interface
+        self.handler = handler
 
     def __call__(self, doc):
         return self.interface.dispatch(on=self, payload={'doc': doc})
@@ -111,7 +118,8 @@ class head_builder:
         return head
         
     def for_console(self, cli, doc):
-        head = '\n{}\n\nby {}'.format(doc['name'], doc['author'])
+        filled_name = self.handler.head_filler(doc['name'])
+        head = '\n{}\n\nby {}'.format(filled_name, doc['author'])
         return head
 
 class keyword_builder:
@@ -134,13 +142,13 @@ class data_builder:
     
 class content_builder:
     
-    def __init__(self, filter_pred, promoter):
+    def __init__(self, filter_pred, handler):
         self.filter_pred = filter_pred
-        self.promoter = promoter
+        self.handler = handler
     
     def process(self, content):
         
-        processed = map(self.promoter, self.merge_splitted_text(content))
+        processed = self.merge_splitted_text(content)
         return [c for i, c in enumerate(processed) if self.filter_pred(i, c)]
 
     def merge_splitted_text(self, lst):
@@ -148,25 +156,50 @@ class content_builder:
         Returns a new list where each splitted text in `lst` is joined into a single line of text.
         """
 
-        merged = []
+        lines = []
+
+        def delete_start_end_placeholders(line):
+            l = line.replace('(Start)', '').replace('(start)', '')
+            return l.replace('(End)', '').replace('(end)', '')
 
         i = 0
         while i < len(lst):
 
-            if '(Start)' in lst[i] or '(start)' in lst[i]:
-                j = i+1
-                while j < len(lst) and not ('(End)' in lst[j] or '(end)' in lst[j]): j += 1
-                joiner = "\n       - "
-                #joiner = "\n<br>"
-                merged.append(joiner.join(lst[i:j if j >= len(lst) or lst[j] == '(End)' else j+1])
-                              .replace('(Start)', '').replace('(start)', '')
-                              .replace('(End)', '').replace('(end)', ''))
+            line = lst[i]
+            
+            if '(start)' in line.lower():
+
+                clean_firstline = delete_start_end_placeholders(line)
+                if clean_firstline:
+                    # the very first line of a chuck should 
+                    # be indent according to the outer filler
+                    lines.append(self.handler.out_filler(clean_firstline))
+
+                subchunk = []
+
+                for j in range(i+1, len(lst)):
+                    subline = lst[j]
+                    subchunk.append(subline)
+                    if '(end)' in subline.lower():
+
+                        clean_lastline = delete_start_end_placeholders(subline)
+                        if not clean_lastline:
+                            del subchunk[-1]
+                        else:
+                            subchunk[-1] = clean_lastline
+
+                        break
+                  
+                
+                atomic_chunk = '\n'.join(map(self.handler.in_filler, subchunk))
+                lines.append(atomic_chunk)
+
                 i = j+1
             else:
-                merged.append(lst[i])
+                lines.append(self.handler.out_filler(line))
                 i += 1
 
-        return merged
+        return lines
 
 class comment_builder(content_builder):
     
@@ -175,7 +208,7 @@ class comment_builder(content_builder):
         if 'comment' not in doc: return ""
         
         comments = self.process(doc['comment'])
-        return ("\n_Comments_:\n   - " + "\n   - ".join(comments)) if comments else ""
+        return ("\n_Comments_:\n" + "\n".join(comments)) if comments else ""
 
 class formula_builder(content_builder):
     
@@ -184,7 +217,7 @@ class formula_builder(content_builder):
         if 'formula' not in doc: return ""
         
         formulae = self.process(doc['formula'])
-        return ("\n_Formulae_:\n   - " + "\n   - ".join(formulae)) if formulae else ""
+        return ("\n_Formulae_:\n" + "\n".join(formulae)) if formulae else ""
     
 class xref_builder(content_builder):
     
@@ -193,7 +226,7 @@ class xref_builder(content_builder):
         if 'xref' not in doc: return ""
         
         xrefs = self.process(doc['xref'])
-        return ("\n_Cross references_:\n   - " + "\n   - ".join(xrefs)) if xrefs else ""
+        return ("\n_Cross references_:\n" + "\n".join(xrefs)) if xrefs else ""
 
 class link_builder(content_builder):
     
@@ -203,7 +236,7 @@ class link_builder(content_builder):
         
         links = self.process(doc['link'])
 
-        return ("\n_Links_:\n   - " + "\n   - ".join(links)) if links else ""
+        return ("\n_Links_:\n" + "\n".join(links)) if links else ""
 
 class reference_builder(content_builder):
     
@@ -212,7 +245,7 @@ class reference_builder(content_builder):
         if 'reference' not in doc: return ""
         
         references = self.process(doc['reference'])
-        return ("\n_References_:\n   - " + "\n   - ".join(references)) if references else ""
+        return ("\n_References_:\n" + "\n".join(references)) if references else ""
 
 # }}}
     
@@ -221,6 +254,7 @@ default_formula_predicate=lambda i, c: True
 default_xref_predicate=lambda i, c: True
 default_link_predicate=lambda i, c: False and "broken link" not in c
 default_reference_predicate=lambda i, c: False
+default_upper_limits = {'list':15, 'table':(10,10)}
 
 def pretty_print(doc, 
                  interface,
@@ -228,33 +262,38 @@ def pretty_print(doc,
                  head=None,
                  keyword=None, 
                  preamble=True,
-                 data_representation=None, 
-                 comment=lambda i, c: True,
-                 formula=lambda i, c: True,
-                 xref=lambda i, c: True,
-                 link=lambda i, c: False and "broken link" not in c,
-                 reference=lambda i, c: False):
+                 data_representation=default_upper_limits, 
+                 comment=default_comment_predicate,
+                 formula=default_formula_predicate,
+                 xref=default_xref_predicate,
+                 link=default_link_predicate,
+                 reference=default_reference_predicate):
     
     if not isinstance(data_representation, AbstractData):
-        data_representation = TableData(upper_limit=data_representation['table']) if 'tabl' in doc['keyword'] else ListData(upper_limit=data_representation['list'])
+        if 'tabl' in doc['keyword']:
+            data_representation = TableData(upper_limit=data_representation['table'])
+        else: 
+            data_representation = ListData(upper_limit=data_representation['list'])
 
-    builders = [head_builder(interface), 
+    handler = interface.dispatch(on=text_handler())
+
+    builders = [head_builder(interface, handler), 
                 keyword_builder(), 
                 data_builder(interface, data_representation)] if preamble else []
     
     if not data_only:
-        handler = interface.dispatch(on=text_handler())
-        builders.extend([comment_builder(filter_pred=comment, promoter=handler), 
-                         formula_builder(filter_pred=formula, promoter=handler), 
-                         xref_builder(filter_pred=xref, promoter=handler),
-                         link_builder(filter_pred=link, promoter=handler), 
-                         reference_builder(filter_pred=reference, promoter=handler)])
+        builders.extend([comment_builder(filter_pred=comment, handler=handler), 
+                         formula_builder(filter_pred=formula, handler=handler), 
+                         xref_builder(filter_pred=xref, handler=handler),
+                         link_builder(filter_pred=link, handler=handler), 
+                         reference_builder(filter_pred=reference, handler=handler)])
     
     paragraphs = [paragraph 
                     for builder in builders 
-                    for paragraph in [builder(doc)]]
+                    for paragraph in [builder(doc)]
+                    if paragraph]
 
-    return "\n".join(paragraphs)
+    return "\n".join(paragraphs + ['']) # the last '' to make a final empty line
 
 
 def search( A_id=None, seq=None, query=None, interface=notebook(),
@@ -269,8 +308,6 @@ def search( A_id=None, seq=None, query=None, interface=notebook(),
         query_components.append((", " if isinstance(seq, list) else " ").join(map(str,seq)))
     elif query: 
         query_components.append(query) 
-    else:
-        raise ValueError('No argument for searching.')
 
     if table: query_components.append("keyword:tabl")
     for r in xref: query_components.append("xref:A{:06d}".format(A_id))
@@ -329,8 +366,8 @@ class oeis_results_composer:
         return Markdown(results_description + "\n<hr>".join(self.results))
 
     def for_console(self, cli):
-        dashes = '-' * cli.width
-        finished = (dashes + '\n').join(self.results)
+        dashes = '_' * cli.width
+        finished = '\n{}\n'.format(dashes).join(self.results)
         if cli.print_results:
             print(finished)
         else: 
@@ -339,10 +376,30 @@ class oeis_results_composer:
 class text_handler:
 
     def for_notebook(self, nb):
-        return seqid_to_ahref
+
+        self.head_filler = self.make_filler(depth=0, marker='', width=cli.width)
+        self.out_filler = self.make_filler(depth=1, marker='-', width=cli.width)
+        self.in_filler = self.make_filler(depth=2, marker='-', width=cli.width)
+        self.seqid_to_ahref=seqid_to_ahref
+        return self
 
     def for_console(self, cli):
-        return functools.partial(textwrap.fill, width=cli.width, replace_whitespace=False)
+
+        self.head_filler = self.make_filler(depth=0, marker='', width=cli.width)
+        self.out_filler = self.make_filler(depth=1, marker='●', width=cli.width)
+        self.in_filler = self.make_filler(depth=2, marker='○', width=cli.width)
+        return self
+
+    def make_filler(self, depth, marker, width):
+        tabs = ' ' * (4*depth)
+        return functools.partial(   textwrap.fill, 
+                                    width=width, 
+                                    replace_whitespace=False,
+                                    break_long_words=False,
+                                    break_on_hyphens=False, 
+                                    tabsize=4,
+                                    initial_indent=tabs + marker + ' ',
+                                    subsequent_indent=tabs + '  ')
 
 # }}}
 
@@ -359,8 +416,7 @@ def handle_cli_arguments():
         else:
             raise ValueError
 
-
-    class eval_action(argparse.Action):
+    class upper_limit_eval_action(argparse.Action):
     
         def __call__(self, parser, namespace, values, option_string, **kwds): 
             ''' https://docs.python.org/3/library/argparse.html#action-classes '''
@@ -372,32 +428,33 @@ def handle_cli_arguments():
 
         class eval_lambda_action(argparse.Action):
 
-            def __call__(self, parser, namespace, values, option_string, **kwds): 
+            def __call__(self, parser, namespace, values, option_string): 
                 lambda_expr = eval(values)
                 if callable(lambda_expr):
                     setattr(namespace, fieldname, lambda_expr)
 
-        return eval_lambda_action
-
+        return eval_lambda_action # actually the class, not an instance
 
 
     parser = argparse.ArgumentParser(description='OEIS Pretty Printer.')
 
-    parser.add_argument('--id', help='Sequence id, given in the form Axxxxxx', type=OEIS_sequenceid)
-    parser.add_argument('--seq', help='Literal sequence, ordered \'[...]\' or presence \'{...}\' ', type=list_or_set)
-    parser.add_argument('--query', help='Open query for plain search, in the form \'...\'')
-    parser.add_argument("--force-table-repr", help="Force matrix repr of data (defaults to False)", 
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--id', help='Sequence id, given in the form Axxxxxx', type=OEIS_sequenceid)
+    group.add_argument('--seq', help='Literal sequence, ordered \'[...]\' or presence \'{...}\' ', type=list_or_set)
+    group.add_argument('--query', help='Open query for plain search, in the form \'...\'')
+
+    parser.add_argument("--tables-only", help="Print matrix sequences only (defaults to False)", 
                         action="store_true", default=False)
-    parser.add_argument("--start-page", metavar='S', help="Start from result at position 10*S  (defaults to 0)",
+    parser.add_argument("--start-index", metavar='S', help="Start from result at rank position S (defaults to 0)",
                         type=int, default=0)
-    parser.add_argument("--max-results", metavar='R', help="Pretty print the former R results (defaults to 5)",
-                        type=int, default=5)
+    parser.add_argument("--max-results", metavar='R', help="Pretty print the former R <= 10 results (defaults to 10)",
+                        type=int, default=10, choices=range(1, 11))
 
     parser.add_argument("--data-only", help="Show only data repr and preamble (defaults to False)", 
                         action="store_true", default=False)
     parser.add_argument('--upper-limit', metavar='U',
                         help='Upper limit for data repr: U is a dict \'{"list":i, "table":(r, c)}\' where i, r and c are ints (defaults to i=15, r=10 and c=10), respectively)', 
-                        action=eval_action, default={'list':15, 'table':(10,10)})
+                        action=upper_limit_eval_action, default=default_upper_limits)
 
     parser.add_argument('--comment-filter', metavar='C', 
                         help='Apply filter C to comments, where C is Python `lambda` predicate \'lambda i,c: ...\' referring to i-th comment c',
@@ -426,16 +483,16 @@ if __name__ == "__main__":
 
     args = handle_cli_arguments()
 
-    searchable = search(A_id=args.id, seq=args.seq, query=args.query, 
-                        interface=console(print_results=False), 
-                        start=args.start_page, 
-                        max_results=args.max_results, 
-                        table=args.force_table_repr)
+    searchable = search(A_id=args.id, seq=args.seq, query=args.query,
+                        interface=console(print_results=False),
+                        start=args.start_index,
+                        max_results=args.max_results,
+                        table=args.tables_only)
 
-    searchable = functools.partial( searchable,
+    searchable = functools.partial( searchable, # which is really the `pretty_print` function
                                     data_representation=args.upper_limit,
                                     data_only=args.data_only,
-                                    comment=args.comment_filter if callable(args.comment_filter) else eval(args.comment_filter),
+                                    comment=args.comment_filter,
                                     formula=args.formula_filter,
                                     xref=args.xrefs_filter,
                                     link=args.link_filter,
