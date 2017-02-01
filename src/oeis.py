@@ -149,7 +149,8 @@ class content_builder:
     def process(self, content):
         
         processed = self.merge_splitted_text(content)
-        return [c for i, c in enumerate(processed) if self.filter_pred(i, c)]
+        post = getattr(self.handler, 'post', lambda i: i)
+        return [post(c) for i, c in enumerate(processed) if self.filter_pred(i, c)]
 
     def merge_splitted_text(self, lst):
         """
@@ -376,11 +377,12 @@ class oeis_results_composer:
 class text_handler:
 
     def for_notebook(self, nb):
-
-        self.head_filler = self.make_filler(depth=0, marker='', width=cli.width)
-        self.out_filler = self.make_filler(depth=1, marker='-', width=cli.width)
-        self.in_filler = self.make_filler(depth=2, marker='-', width=cli.width)
-        self.seqid_to_ahref=seqid_to_ahref
+        
+        width = 80
+        self.head_filler = self.make_filler(depth=0, marker='', width=width)
+        self.out_filler = self.make_filler(depth=0, marker='-', width=width)
+        self.in_filler = self.make_filler(depth=1, marker='-', width=width)
+        self.post = seqid_to_ahref # for post processing
         return self
 
     def for_console(self, cli):
