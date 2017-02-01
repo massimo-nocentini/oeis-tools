@@ -6,11 +6,13 @@ from functools import wraps, partial
 from collections import namedtuple, deque
 from itertools import count
 
+from commons import Axxxxxx_regex, OEIS_sequenceid
+
 # preamble {{{
 logging.basicConfig(level=logging.NOTSET)
 logger = logging.getLogger(__name__)
 
-OEIS_sequenceid_regex = re.compile('(?P<id>A\d{6,6})')
+Axxxxxx_regex = re.compile('(?P<id>A\d{6,6})')
 
 URL = namedtuple('URL', ['host', 'port', 'resource'])
 RestartingUrls = namedtuple('RestartingUrls', ['seen', 'fringe'])
@@ -120,7 +122,7 @@ class crawler:
 
 def cross_references(xref):
     return {r   for references in xref 
-                for r in OEIS_sequenceid_regex.findall(references)}
+                for r in Axxxxxx_regex.findall(references)}
 
 def make_resource(oeis_id):
     return r'/search?q=id%3A{}&fmt=json'.format(oeis_id)
@@ -219,11 +221,6 @@ def oeis(loop, initial_urls, workers, progress_mark):
 def handle_cli_arguments():
 
     import argparse
-
-    def OEIS_sequenceid(seqid):
-        if not OEIS_sequenceid_regex.match(seqid):
-            raise ValueError
-        return seqid
 
     parser = argparse.ArgumentParser(description='OEIS Crawler.')
 
