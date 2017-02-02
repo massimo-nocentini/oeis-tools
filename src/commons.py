@@ -1,30 +1,88 @@
 
-import re, requests
+import re, requests, os, json
 
 Axxxxxx_regex = re.compile('(?P<id>A\d{6,6})')
 
-def fetch_oeis_payload( payload, 
+def fetch_oeis_payload( dolocal, 
+                        payload, 
                         then=None, 
                         network_error_handler=lambda exc: None, 
                         json_decoding_error_handler=lambda GET_result, exc: None, 
                         progress_indicator='●'):
 
-    try: 
-        GET_result = requests.get("https://oeis.org/search", params=payload,)
-    except Exception as e: 
-        return network_error_handler(e)
+    cache_dir = dolocal['cache_dir']
 
-    try:
-        doc = GET_result.json()
+    doc = {}
+    GET_result = None
 
-        if 'results' not in doc or not doc['results']: 
-            doc['results'] = []
+    if dolocal['cache_first']:
 
-        if progress_indicator: 
-            print(progress_indicator, end='')
+        def json_load(f):
+            relative_path = os.path.join(cache_dir, f)
+            with open(relative_path, 'r') as handler:
+                doc = json.load(handler)
+                doc['relative_path'] = relative_path
+                return doc
 
-    except Exception as e:
-        return json_decoding_error_handler(e, GET_result)
+        A_genid = 'Axxxxxx'
+        docs = {json_file[:len(A_genid)]: json_load(json_file)  
+                for json_file in filter(lambda f: f.endswith('.json'), os.listdir(cache_dir))}
+        
+        if 'id' in dolocal:
+            doc = docs.get(dolocal['id'], None)
+
+        elif 'seq' in dolocal:
+            seq = dolocal['seq']
+
+            def filtering(doc):
+                result = doc['results'][0] if doc['results'] else {'data': ''}
+                if isinstance(seq, list):
+                    looking = ','.join(map(str, seq))
+                    return looking in result['data'].replace(' ', '')
+                elif isinstance(seq, set):
+                    ints = set(map(int, result['data'].split(',')))
+                    return seq.issubset(ints)
+                return False
+
+            multiple_results = []
+            for d in filter(filtering, docs.values()):
+                multiple_results.extend(d.get('results', []))
+            doc = {'results': multiple_results}
+
+        elif dolocal['most_recents']:
+            ordering = os.path.getatime if dolocal['most_recents'] == 'ACCESS' else os.path.getmtime
+            multiple_results = []
+            for d in sorted(docs.values(), 
+                            key=lambda doc: ordering(doc['relative_path']),
+                            reverse=True):
+            # even tough in a Axxxxxx.json file `results` should be a list with exactly one object
+                multiple_results.extend(d.get('results', [])) 
+            doc = {'results': multiple_results}
+
+    if 'results' not in doc:# or not doc['results']:
+
+        try: 
+            GET_result = requests.get("https://oeis.org/search", params=payload,)
+        except Exception as e: 
+            return network_error_handler(e)
+
+        try:
+            doc = GET_result.json()
+
+            if 'results' not in doc or not doc['results']: 
+                doc['results'] = []
+
+            if 'id' in dolocal:
+                relative_path = os.path.join(cache_dir, dolocal['id']+'.json')
+                with open(relative_path, 'w') as f:
+                    json.dump(doc, f)
+                    f.flush()
+
+            if progress_indicator: 
+                print(progress_indicator, end='')
+
+        except Exception as e:
+            return json_decoding_error_handler(e, GET_result)
 
     return then(doc, GET_result) if callable(then) else doc
 

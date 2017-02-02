@@ -45,7 +45,7 @@ $$
 
         seq = doc['data'].split(',')[:self.upper_limit]
 
-        L = Matrix(1, self.upper_limit, lambda _, j: int(seq[j]))
+        L = Matrix(1, min(len(seq), self.upper_limit), lambda _, j: int(seq[j]))
 
         return pretty(L)
 
@@ -297,7 +297,9 @@ def pretty_print(doc,
     return "\n".join(paragraphs + ['']) # the last '' to make a final empty line
 
 
-def search( A_id=None, seq=None, query=None, interface=notebook(),
+def search( A_id=None, seq=None, query=None, 
+            cache_info={'cache_dir': './fetched/', 'most_recents': None, 'cache_first': True},
+            interface=notebook(),
             start=0, max_results=None, table=False, xref=[], 
             only_possible_matchings=False, **kwds):
 
@@ -305,8 +307,11 @@ def search( A_id=None, seq=None, query=None, interface=notebook(),
 
     if isinstance(A_id, (str, )) and Axxxxxx_regex.match(A_id): 
         query_components.append("id:{}".format(A_id))
+        cache_info['id'] = A_id
     elif seq: 
-        query_components.append((", " if isinstance(seq, list) else " ").join(map(str,seq)))
+        ready = (", " if isinstance(seq, list) else " ").join(map(str,seq))
+        query_components.append(ready)
+        cache_info['seq'] = seq
     elif query: 
         query_components.append(query) 
 
@@ -345,6 +350,7 @@ def search( A_id=None, seq=None, query=None, interface=notebook(),
         return searchable
 
     return fetch_oeis_payload(
+                dolocal=cache_info,
                 payload={"fmt": "json", "start": start, "q": ' '.join(query_components)},  
                 then=possible_matchings if only_possible_matchings else make_searchable, 
                 network_error_handler=connection_error, 
@@ -444,13 +450,20 @@ def handle_cli_arguments():
     group.add_argument('--id', help='Sequence id, given in the form Axxxxxx', type=OEIS_sequenceid)
     group.add_argument('--seq', help='Literal sequence, ordered \'[...]\' or presence \'{...}\' ', type=list_or_set)
     group.add_argument('--query', help='Open query for plain search, in the form \'...\'')
+    group.add_argument('--most-recents', help="Print the most recent sequences ranking by M in ACCESS or MODIFY, looking into --cache-dir, at most --max-results (defaults to None)", 
+                        default=None, metavar='M', choices={'ACCESS', 'MODIFY'})
+
+    parser.add_argument("--force-fetch", help="Bypass cache fetching again, according to --cache-dir (defaults to False)", 
+                        action="store_true", default=False)
+    parser.add_argument("--cache-dir", help="Cache directory (defaults to ./fetched/)",
+                        default='./fetched/')
 
     parser.add_argument("--tables-only", help="Print matrix sequences only (defaults to False)", 
                         action="store_true", default=False)
     parser.add_argument("--start-index", metavar='S', help="Start from result at rank position S (defaults to 0)",
                         type=int, default=0)
     parser.add_argument("--max-results", metavar='R', help="Pretty print the former R <= 10 results (defaults to 10)",
-                        type=int, default=10, choices=range(1, 11))
+                        type=int, default=10)#, choices=range(1, 11))
 
     parser.add_argument("--data-only", help="Show only data repr and preamble (defaults to False)", 
                         action="store_true", default=False)
@@ -486,6 +499,9 @@ if __name__ == "__main__":
     args = handle_cli_arguments()
 
     searchable = search(A_id=args.id, seq=args.seq, query=args.query,
+                        cache_info={'cache_dir': args.cache_dir, 
+                                    'most_recents': args.most_recents, 
+                                    'cache_first': not args.force_fetch},
                         interface=console(print_results=False),
                         start=args.start_index,
                         max_results=args.max_results,
