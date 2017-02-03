@@ -3,6 +3,22 @@ import re, requests, os, json
 
 Axxxxxx_regex = re.compile('(?P<id>A\d{6,6})')
 
+def cross_references(xref):
+    return {r for references in xref for r in Axxxxxx_regex.findall(references)}
+
+def json_load(f, cache_dir, add_path_attr=True):
+    relative_path = os.path.join(cache_dir, f)
+    with open(relative_path, 'r') as handler:
+        doc = json.load(handler)
+        if add_path_attr:
+            doc['relative_path'] = relative_path
+        return doc
+
+def cache_reify(cache_dir):
+    A_genid = 'Axxxxxx'
+    return {json_file[:len(A_genid)]: json_load(json_file, cache_dir)  
+            for json_file in filter(lambda f: f.endswith('.json'), os.listdir(cache_dir))}
+
 def fetch_oeis_payload( dolocal, 
                         payload, 
                         then=None, 
@@ -17,16 +33,7 @@ def fetch_oeis_payload( dolocal,
 
     if dolocal['cache_first']:
 
-        def json_load(f):
-            relative_path = os.path.join(cache_dir, f)
-            with open(relative_path, 'r') as handler:
-                doc = json.load(handler)
-                doc['relative_path'] = relative_path
-                return doc
-
-        A_genid = 'Axxxxxx'
-        docs = {json_file[:len(A_genid)]: json_load(json_file)  
-                for json_file in filter(lambda f: f.endswith('.json'), os.listdir(cache_dir))}
+        docs = cache_reify(cache_dir)
         
         if 'id' in dolocal:
             doc = docs.get(dolocal['id'], None)
