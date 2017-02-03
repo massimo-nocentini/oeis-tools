@@ -4,6 +4,11 @@ import commons
 
 from collections import defaultdict
 
+def graph_load(cache_dir='./fetched/'):
+    docs = commons.cache_reify(cache_dir)
+    graph = adjust_crossreferences(docs)
+    return graph
+
 def adjust_crossreferences(docs):
     
     graph = {k:v['results'].pop() for k, v in docs.items()}
@@ -23,7 +28,7 @@ def adjust_crossreferences(docs):
 
     return graph
 
-def make_nx_graph(graph, digraph=True, 
+def make_nx_graph(graph, digraph=False, 
                   node_remp=lambda n, G: False, 
                   edge_remp=lambda u, v, G: False):
 
