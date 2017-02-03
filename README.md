@@ -1,5 +1,8 @@
 # eois-tools
 
+A suite of tools to interact with the [OEIS][oeis], providing both _console_
+and _Jupyter notebook_ facilities. 
+
 ## OEIS crawler
 
 ```
@@ -27,7 +30,12 @@ optional arguments:
                         Symbol for fetched event (defaults to ●)
 ```
 
-## OEIS pprinting
+## OEIS pprinter
+
+The following is the usage and help description in the console facility; although,
+a Jupyter notebook is also given ([view][pp:nb]).
+
+[pp:nb]:http://nbviewer.jupyter.org/github/massimo-nocentini/oeis-tools/blob/master/notebooks/oeis-interaction.ipynb
 
 ```
 $ python3.6 pprinting.py -h 
@@ -78,6 +86,11 @@ optional arguments:
 ```
 
 ## OEIS grapher
+
+The following is the usage and help description in the console facility; although,
+a Jupyter notebook is also given ([view][grapher:nb]).
+
+[grapher:nb]:http://nbviewer.jupyter.org/github/massimo-nocentini/oeis-tools/blob/master/notebooks/oeis-mining.ipynb
 
 ```
 $ python3.6 graphing.py -h 
