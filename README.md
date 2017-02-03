@@ -3,6 +3,8 @@
 A suite of tools to interact with the [OEIS][oeis], providing both __console__
 and __Jupyter notebook__ facilities. 
 
+[oeis]:http://oeis.org/
+
 ## OEIS crawler
 
 ```
@@ -32,7 +34,7 @@ optional arguments:
 
 ## OEIS pprinter
 
-The following is the help description of the console facility for the pretty printer; although,
+The following is the help description of the console facility for the _pretty printer_; moreover,
 a Jupyter notebook is also given ([view][pp:nb]).
 
 [pp:nb]:http://nbviewer.jupyter.org/github/massimo-nocentini/oeis-tools/blob/master/notebooks/oeis-interaction.ipynb
@@ -87,7 +89,7 @@ optional arguments:
 
 ## OEIS grapher
 
-The following is the help description of the console facility for the grapher; although,
+The following is the help description of the console facility for the _grapher_; moreover,
 a Jupyter notebook is also given ([view][grapher:nb]).
 
 [grapher:nb]:http://nbviewer.jupyter.org/github/massimo-nocentini/oeis-tools/blob/master/notebooks/oeis-mining.ipynb
