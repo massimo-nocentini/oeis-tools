@@ -1,54 +1,29 @@
 
 import networkx as nx
+import commons
 
-def cross_references(xref):
-    return {int(r[1:])  for references in xref 
-                        for r in Axxxxxx_regex.findall(references)}
+from collections import defaultdict
 
-def adjust_crossreferences(graph):
+def adjust_crossreferences(docs):
+    
+    graph = {k:v['results'].pop() for k, v in docs.items()}
 
-    for k, v in graph.items():
+    for k, result in graph.items():
 
-        xrefs = cross_references(v['xref']) if 'xref' in v else set()
-        v['xref_as_set'] = {xr for xr in xrefs if xr in graph} 
+        xrefs = commons.cross_references(result['xref']) if 'xref' in result else set()
+        
+        # finally, ensure `closed-world` property:
+        result['xref_as_set'] = {xr for xr in xrefs if xr in graph}  
 
-        for ref in v['xref_as_set']:
-
+        for ref in result['xref_as_set']:
             referenced = graph[ref]
-            if 'referees' not in referenced: referenced['referees'] = set()
+            if 'referees' not in referenced: 
+                referenced['referees'] = set()
             referenced['referees'].add(k)
 
     return graph
 
-def load_graph(filename):
-
-    with open(filename, 'r') as f:
-
-        graph = {int(k):v for k, v in adjust_crossreferences(json.load(f)).items()}
-        return adjust_crossreferences(graph)
-
-
-def fetch_graph(filename, **kwds): 
-
-    def save(graph):
-        with open(filename, 'w') as f:
-            json.dump(graph, f)
-
-    start_timestamp = time.time()
-
-    graph = oeis_graph(post_processing=[], **kwds)
-
-    end_timestamp = time.time()
-
-    print("Elapsed time: {:3} secs.".format(end_timestamp - start_timestamp))
-
-    save(graph)
-
-    print("Graph saved.")
-
-#________________________________________________________________________
-
-def make_nx_graph(graph, summary=True, digraph=True, 
+def make_nx_graph(graph, digraph=True, 
                   node_remp=lambda n, G: False, 
                   edge_remp=lambda u, v, G: False):
 
@@ -60,13 +35,12 @@ def make_nx_graph(graph, summary=True, digraph=True,
 
     G.remove_nodes_from([n for n in G.nodes() if node_remp(n, G)])
     G.remove_edges_from([(u, v) for u, v in G.edges() if edge_remp(u, v, G)])
-            
-    if summary:
-        print("A graph with {} nodes and {} edges will be drawn".format(len(G.nodes()),len(G.edges())))
         
     return G
 
-def draw_nx_graph(G, nodes_colors={}, filename=None, nodes_labels={}):
+def draw_nx_graph(  G, nodes_colors={}, 
+                    filename=None, nodes_labels={}, dpi=600,
+                    layout=lambda l: l.shell_layout):
     
     import matplotlib.pyplot as plt
 
@@ -74,8 +48,9 @@ def draw_nx_graph(G, nodes_colors={}, filename=None, nodes_labels={}):
     
     nc = defaultdict(lambda: 'gray')
     nc.update(nodes_colors)
-    
-    pos=nx.spring_layout(G)#, iterations=200) # positions for all nodes
+     
+    l = layout(nx.layout)
+    pos = l(G)#, iterations=200) # positions for all nodes
 
     degrees = G.in_degree() if G.is_directed() else G.degree()
     for seq_id in G.nodes():
@@ -95,10 +70,73 @@ def draw_nx_graph(G, nodes_colors={}, filename=None, nodes_labels={}):
     nx.draw_networkx_edges(G,pos,width=1.0,alpha=0.5)
     
     if nodes_labels['draw']:
-        ls = {n:nodes_labels[n] if n in nodes_labels else (str(n) if G.in_degree()[n] > 10 else "") 
-              for n in G.nodes()}
+        ls = {n:nodes_labels[n] if n in nodes_labels else '' for n in G.nodes()}
         nx.draw_networkx_labels(G,pos,ls,font_size=16)
 
     plt.axis('off')
-    if filename: plt.savefig(filename) # save as png
+    if filename: plt.savefig(filename, dpi=dpi)
     else: plt.show()
+
+
+# argument parsing {{{ 
+
+def handle_cli_arguments(): 
+    
+    import argparse 
+    
+    def layout_type(l):
+        '''
+        https://networkx.github.io/documentation/development/_modules/networkx/drawing/layout.html
+        '''
+
+        layout_selector = None
+
+        if l == 'RANDOM':
+            layout_selector = lambda l: l.random_layout
+        if l == 'CIRCULAR':
+            layout_selector = lambda l: l.circular_layout
+        elif l == 'SHELL':
+            layout_selector = lambda l: l.shell_layout
+        elif l == 'FRUCHTERMAN-REINGOLD' or l == 'SPRING':
+            layout_selector = lambda l: l.fruchterman_reingold_layout
+        elif l == 'SPECTRAL':
+            layout_selector = lambda l: l.spectral_layout
+        else:
+            raise ValueError
+
+        return layout_selector
+            
+
+    parser = argparse.ArgumentParser(description='OEIS grapher.')
+
+    parser.add_argument('filename', metavar='F', help='Save image in file F.')
+    parser.add_argument("--directed", help="Draw directed edges", action="store_true")
+    parser.add_argument("--cache-dir", help="Cache directory (defaults to ./fetched/)",
+                        default='./fetched/')
+    parser.add_argument("--graphs-dir", help="Graphs directory (defaults to ./graphs/)",
+                        default='./graphs/')
+    parser.add_argument("--dpi", help="Resolution in DPI (defaults to 600)",
+                        default=600, type=int)
+    parser.add_argument("--layout", help="Graph layout, choose from: {RANDOM, CIRCULAR, SHELL, FRUCHTERMAN-REINGOLD, SPRING, SPECTRAL} (defaults to SHELL)",
+                        default='SHELL', type=layout_type,) 
+
+    args = parser.parse_args()
+    return args
+
+# }}}
+
+# main {{{
+
+if __name__ == "__main__":
+
+    args = handle_cli_arguments()
+
+    docs = commons.cache_reify(args.cache_dir)
+
+    graph = adjust_crossreferences(docs)
+
+    nxgraph = make_nx_graph(graph, digraph=args.directed, )
+
+    draw_nx_graph(nxgraph, filename=args.graphs_dir + args.filename, layout=args.layout)
+
+# }}}    
