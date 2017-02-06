@@ -10,6 +10,10 @@ Welcome to OEIS tools's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   intro
+   crawler
+   pprinter
+   grapher    
 
 
 Indices and tables
