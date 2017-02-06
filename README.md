@@ -1,6 +1,6 @@
 # eois-tools
 
-[![Doc Build Status](http://oeis-tools.readthedocs.io/en/latest/?badge=latest)](http://oeis-tools.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status](https://readthedocs.org/projects/oeis-tools/badge/?version=latest)](http://oeis-tools.readthedocs.io/en/latest/?badge=latest)
 
 
 A suite of tools to interact with the [OEIS][oeis], providing both __console__
