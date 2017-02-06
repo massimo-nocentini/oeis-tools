@@ -1,7 +1,12 @@
 # eois-tools
 
+[![Doc Build Status](http://oeis-tools.readthedocs.io/en/latest/?badge=latest)](http://oeis-tools.readthedocs.io/en/latest/?badge=latest)
+
+
 A suite of tools to interact with the [OEIS][oeis], providing both __console__
 and __Jupyter notebook__ facilities. 
+<br>
+A *detailed documentation* can be found at http://oeis-tools.readthedocs.io/
 
 [oeis]:http://oeis.org/
 
