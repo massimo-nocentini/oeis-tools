@@ -1,12 +1,14 @@
 # eois-tools
 
-[![Documentation Status](https://readthedocs.org/projects/oeis-tools/badge/?version=latest)](http://oeis-tools.readthedocs.io/en/latest/?badge=latest)
+<a href='http://oeis-tools.readthedocs.io/en/latest/?badge=latest'>
+    <img src='https://readthedocs.org/projects/oeis-tools/badge/?version=latest' alt='Documentation Status' />
+</a>
 
 
 A suite of tools to interact with the [OEIS][oeis], providing both __console__
 and __Jupyter notebook__ facilities. 
-<br>
-A *detailed documentation* can be found at http://oeis-tools.readthedocs.io/
+<br> <br>
+A **detailed documentation** can be read at http://oeis-tools.readthedocs.io/
 
 [oeis]:http://oeis.org/
 
