@@ -9,6 +9,8 @@ from itertools import count
 from commons import Axxxxxx_regex, OEIS_sequenceid
 
 # preamble {{{
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+
 logging.basicConfig(level=logging.NOTSET)
 logger = logging.getLogger(__name__)
 
