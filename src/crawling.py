@@ -135,14 +135,15 @@ def sets_of_cross_references(doc, sections=['xref']):
             for section in sections]
     return sets
 
-def parse_json(url, content, appender, seen_urls, stubborn=False, progress_mark=None):
+def parse_json( url, content, appender, seen_urls, 
+                stubborn=False, progress_mark=None, cache_dir='./fetched/'):
     
     references = set()
 
     try:
         doc = json.loads(content[content.index('\n{'):])
         
-        with open('fetched/{}.json'.format(url.resource), 'w') as f:
+        with open('{}{}.json'.format(cache_dir, url.resource), 'w') as f:
             json.dump(doc, f)
             f.flush()
 
@@ -191,7 +192,7 @@ def urls_in_cache(subdir):
 
     return RestartingUrls(seen=seen_urls, fringe=initial_urls-seen_urls)
 
-def oeis(loop, initial_urls, workers, progress_mark):
+def oeis(loop, initial_urls, workers, progress_mark, cache_dir):
 
     seen_urls = set()
 
@@ -202,7 +203,10 @@ def oeis(loop, initial_urls, workers, progress_mark):
 
     def factory(resource, appender):
         url = URL(host='oeis.org', port=80, resource=resource)
-        kwds = {'appender': appender, 'seen_urls': seen_urls, 'progress_mark': progress_mark}
+        kwds = {'appender': appender, 
+                'seen_urls': seen_urls, 
+                'progress_mark': progress_mark, 
+                'cache_dir': cache_dir}
         return fetcher( url, done=partial(parse_json, **kwds), resource_key=make_resource)
 
     crawl_job = crawler(resources=initial_urls.fringe, 
@@ -280,7 +284,8 @@ if __name__ == "__main__":
             fetched_urls = oeis(loop=loop, 
                                 initial_urls=cached_urls, 
                                 workers=args.workers,
-                                progress_mark=args.progress_mark)
+                                progress_mark=args.progress_mark,
+                                cache_dir=args.cache_dir)
 
             print('\nfetched {} new sequences:\n{}'.format(len(fetched_urls), fetched_urls))
         else:
