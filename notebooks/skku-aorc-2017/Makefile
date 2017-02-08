@@ -1,6 +1,6 @@
 
 localhost:
-	jupyter-notebook --port=5900 --ip=150.217.37.50
+	PYTHONPATH=../../src/ jupyter-notebook --port=5900 --ip=150.217.37.50
 
 presentation:
 	jupyter-nbconvert talk.ipynb \
