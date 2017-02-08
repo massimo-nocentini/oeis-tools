@@ -487,6 +487,9 @@ def handle_cli_arguments():
                         help='Apply filter R to citation, where R is Python `lambda` predicate \'lambda i,r: ...\' referring to i-th citation r',
                         default=default_reference_predicate, action=make_eval_lambda_action(fieldname='cite_filter'))
 
+    parser.add_argument("--console-width", metavar='W', help="Console columns (defaults to 72)",
+                        type=int, default=72)
+
     args = parser.parse_args()
     return args
 
@@ -502,7 +505,7 @@ if __name__ == "__main__":
                         cache_info={'cache_dir': args.cache_dir, 
                                     'most_recents': args.most_recents, 
                                     'cache_first': not args.force_fetch},
-                        interface=console(print_results=False),
+                        interface=console(print_results=False, width=args.console_width),
                         start=args.start_index,
                         max_results=args.max_results,
                         table=args.tables_only)
