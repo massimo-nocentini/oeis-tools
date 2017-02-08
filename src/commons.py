@@ -26,12 +26,13 @@ def fetch_oeis_payload( dolocal,
                         json_decoding_error_handler=lambda GET_result, exc: None, 
                         progress_indicator='●'):
 
-    cache_dir = dolocal['cache_dir']
 
     doc = {}
     GET_result = None
 
-    if dolocal['cache_first']:
+    if dolocal.get('cache_first', True):
+
+        cache_dir = dolocal['cache_dir']
 
         docs = cache_reify(cache_dir)
         
@@ -56,17 +57,18 @@ def fetch_oeis_payload( dolocal,
                 multiple_results.extend(d.get('results', []))
             doc = {'results': multiple_results}
 
-        elif dolocal['most_recents']:
+        elif dolocal.get('most_recents', None):
             ordering = os.path.getatime if dolocal['most_recents'] == 'ACCESS' else os.path.getmtime
             multiple_results = []
             for d in sorted(docs.values(), 
                             key=lambda doc: ordering(doc['relative_path']),
                             reverse=True):
-            # even tough in a Axxxxxx.json file `results` should be a list with exactly one object
+                # even tough in a Axxxxxx.json file `results` 
+                # should be a list with exactly one object
                 multiple_results.extend(d.get('results', [])) 
             doc = {'results': multiple_results}
 
-    if 'results' not in doc:# or not doc['results']:
+    if 'results' not in doc:
 
         try: 
             GET_result = requests.get("https://oeis.org/search", params=payload,)
@@ -79,7 +81,8 @@ def fetch_oeis_payload( dolocal,
             if 'results' not in doc or not doc['results']: 
                 doc['results'] = []
 
-            if 'id' in dolocal:
+            if 'id' in dolocal and 'cache_dir' in dolocal:
+                cache_dir = dolocal['cache_dir']
                 relative_path = os.path.join(cache_dir, dolocal['id']+'.json')
                 with open(relative_path, 'w') as f:
                     json.dump(doc, f)
