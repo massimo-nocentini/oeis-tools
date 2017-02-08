@@ -1,5 +1,8 @@
 
 localhost:
+	PYTHONPATH=../../src/ jupyter-notebook
+
+fatberry.dsi.unifi.it:
 	PYTHONPATH=../../src/ jupyter-notebook --port=5900 --ip=150.217.37.50
 
 presentation:
