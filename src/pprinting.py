@@ -45,7 +45,7 @@ $$
 
         seq = doc['data'].split(',')[:self.upper_limit]
 
-        L = Matrix(1, min(len(seq), self.upper_limit), lambda _, j: int(seq[j]))
+        L = Matrix(1, min(len(seq), self.upper_limit), lambda _, j: int(seq[j] or 0))
 
         return pretty(L)
 
@@ -114,12 +114,12 @@ class head_builder:
 
     def for_notebook(self, nb, doc):
         head = r"<div align='center'><b><a href='http://oeis.org/A{:06d}'>A{:06d}</a></b>: {}<br></div>".format(
-                doc['number'], doc['number'], doc['name'], ) + "\n\nby {}".format(doc['author'])
+                doc['number'], doc['number'], doc['name'], ) + "\n\nby {}".format(doc.get('author', 'Unknown'))
         return head
         
     def for_console(self, cli, doc):
-        filled_name = self.handler.head_filler(doc['name'])
-        head = '\n{}\n\nby {}'.format(filled_name, doc['author'])
+        filled_name = self.handler.head_filler('A{:06d} - {}'.format(doc['number'], doc['name']))
+        head = '\n{}\n\nby {}'.format(filled_name, doc.get('author', 'Unknown'))
         return head
 
 class keyword_builder:
@@ -331,7 +331,8 @@ def search( A_id=None, seq=None, query=None,
 
             results = [pretty_print(result, interface, **pp_kwds) 
                                 for i, result in enumerate(doc['results']) 
-                                if not max_results or i < max_results]
+                                if not max_results or i < max_results
+                                if 'allocated' not in result['keyword']]
 
             return interface.dispatch(on=oeis_results_composer(results, doc, GET_result))
 
