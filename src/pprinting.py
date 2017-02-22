@@ -525,3 +525,29 @@ if __name__ == "__main__":
     print(results)
 
 # }}}    
+
+# Notes {{{
+
+'''
+It should be interesting to attach javascript code to each reference in
+order to capture the `click` event and build dynamically a new cell
+that starts the search of the clicked reference. Something like that:
+from IPython.display import display_javascript
+
+def make_cell(s):
+    display_javascript("""var t_cell = IPython.notebook.get_selected_cell()
+        t_cell.set_text('<!--\\n' + t_cell.get_text() + '\\n--> \\n{}');
+        var t_index = IPython.notebook.get_cells().indexOf(t_cell);
+        IPython.notebook.to_markdown(t_index);
+        IPython.notebook.get_cell(t_index).render();""".format(s.replace('\n','\\n')), raw=True)
+
+you could replace "Jupyter.notebook.get_selected_cell()" with 
+"Jupyter.notebook.inset_cell_below()" to create a new cell, 
+rather than replacing the existing one.
+
+Take a look at these references:
+- https://groups.google.com/forum/#!topic/jupyter/tW8mbovVQDM
+- https://github.com/jupyter/notebook/blob/master/notebook/static/notebook/js/notebook.js#L197-L210
+'''
+
+# }}}
