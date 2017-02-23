@@ -5,6 +5,11 @@ and __Jupyter notebook__ facilities.
 
 [oeis]:http://oeis.org/
 
+A [talk][skku:talk] about them will be given at [SKKU AORC 2017][aorc].
+
+[skku:talk]:http://massimo-nocentini.github.io/PhD/skku-aorc-2017/oeistools.html#/
+[aorc]:http://shb.skku.edu/aorc/conference_info/new.jsp
+
 ## OEIS crawler
 
 ```
