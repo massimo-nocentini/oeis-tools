@@ -300,6 +300,7 @@ def pretty_print(doc,
 def search( A_id=None, seq=None, query=None, 
             cache_info={'cache_dir': './fetched/', 'most_recents': None, 'cache_first': True},
             interface=notebook(),
+            raw_json=False,
             start=0, max_results=None, table=False, xref=[], 
             only_possible_matchings=False, **kwds):
 
@@ -353,7 +354,9 @@ def search( A_id=None, seq=None, query=None,
     return fetch_oeis_payload(
                 dolocal=cache_info,
                 payload={"fmt": "json", "start": start, "q": ' '.join(query_components)},  
-                then=possible_matchings if only_possible_matchings else make_searchable, 
+                then=(possible_matchings if only_possible_matchings 
+                        else None if raw_json 
+                        else make_searchable), 
                 network_error_handler=connection_error, 
                 json_decoding_error_handler=json_error,
                 progress_indicator=None)
