@@ -55,7 +55,7 @@ def draw_nx_graph(  G, nodes_colors={},
     nc.update(nodes_colors)
      
     l = layout(nx.layout)
-    pos = l(G)#, iterations=200) # positions for all nodes
+    pos = l(G)
 
     degrees = G.in_degree() if G.is_directed() else G.degree()
     for seq_id in G.nodes():
@@ -63,19 +63,12 @@ def draw_nx_graph(  G, nodes_colors={},
                                node_color=nc[seq_id],
                                node_size=degrees[seq_id]*10, 
                                alpha=0.8)
-
-    """
-    nx.draw_networkx_nodes(G,pos,
-                           nodelist=set(G.nodes())-set(favorite_nodes.keys()),
-                           node_color='r',
-                           node_size=500,
-                       alpha=0.8)
-    """
     
     nx.draw_networkx_edges(G,pos,width=1.0,alpha=0.5)
     
     if nodes_labels['draw']:
-        ls = {n:nodes_labels[n] if n in nodes_labels else '' for n in G.nodes()}
+        ls = {n:nodes_labels[n] if n in nodes_labels else '' 
+              for n in G.nodes()}
         nx.draw_networkx_labels(G,pos,ls,font_size=16)
 
     plt.axis('off')
