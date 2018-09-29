@@ -1,6 +1,8 @@
 
 import networkx as nx
 import commons
+import math
+import random
 
 from collections import defaultdict
 
@@ -10,64 +12,67 @@ def graph_load(cache_dir='./fetched/'):
     return graph
 
 def adjust_crossreferences(docs):
-    
+
     graph = {k:v['results'].pop() for k, v in docs.items()}
 
     for k, result in graph.items():
 
         xrefs = commons.cross_references(result['xref']) if 'xref' in result else set()
-        
+
         # finally, ensure `closed-world` property:
-        result['xref_as_set'] = {xr for xr in xrefs if xr in graph}  
+        result['xref_as_set'] = {xr for xr in xrefs if xr in graph}
 
         for ref in result['xref_as_set']:
             referenced = graph[ref]
-            if 'referees' not in referenced: 
+            if 'referees' not in referenced:
                 referenced['referees'] = set()
             referenced['referees'].add(k)
 
     return graph
 
-def make_nx_graph(graph, digraph=False, 
-                  node_remp=lambda n, G: False, 
+def make_nx_graph(graph, digraph=False,
+                  node_remp=lambda n, G: False,
                   edge_remp=lambda u, v, G: False):
 
-    G = nx.DiGraph() if digraph else nx.Graph()
+    G, edge_symbol = (nx.DiGraph(), '->') if digraph else (nx.Graph(), '--')
 
+    edge_symbol = '--'
+    edges = []
     for seq_id, v in graph.items():
         for ref_seq_id in v['xref_as_set']:
             G.add_edge(seq_id, ref_seq_id)
+            edges.append("{} {} {}".format(seq_id, edge_symbol, ref_seq_id))
 
     G.remove_nodes_from([n for n in G.nodes() if node_remp(n, G)])
     G.remove_edges_from([(u, v) for u, v in G.edges() if edge_remp(u, v, G)])
-        
-    return G
 
-def draw_nx_graph(  G, nodes_colors={}, 
+    return G, edges
+
+def draw_nx_graph(  G, nodes_colors={},
                     filename=None, nodes_labels={}, dpi=600,
                     layout=lambda l: l.shell_layout):
-    
+
     import matplotlib.pyplot as plt
 
     if 'draw' not in nodes_labels: nodes_labels['draw'] = True
-    
+
     nc = defaultdict(lambda: 'gray')
     nc.update(nodes_colors)
-     
+
     l = layout(nx.layout)
     pos = l(G)
 
     degrees = G.in_degree() if G.is_directed() else G.degree()
     for seq_id in G.nodes():
-        nx.draw_networkx_nodes(G, pos, nodelist=[seq_id], 
+        nx.draw_networkx_nodes(G, pos, nodelist=[seq_id],
                                node_color=nc[seq_id],
-                               node_size=degrees[seq_id]*10, 
+                               node_size=degrees[seq_id]*10,
                                alpha=0.8)
-    
+
     nx.draw_networkx_edges(G,pos,width=1.0,alpha=0.5)
-    
+
     if nodes_labels['draw']:
-        ls = {n:nodes_labels[n] if n in nodes_labels else '' 
+        ls = {n:nodes_labels[n] if n in nodes_labels else ''
               for n in G.nodes()}
         nx.draw_networkx_labels(G,pos,ls,font_size=16)
 
@@ -76,12 +81,12 @@ def draw_nx_graph(  G, nodes_colors={},
     else: plt.show()
 
 
-# argument parsing {{{ 
+# argument parsing {{{
 
-def handle_cli_arguments(): 
-    
-    import argparse 
-    
+def handle_cli_arguments():
+
+    import argparse
+
     def layout_type(l):
         '''
         https://networkx.github.io/documentation/development/_modules/networkx/drawing/layout.html
@@ -103,7 +108,7 @@ def handle_cli_arguments():
             raise ValueError
 
         return layout_selector
-            
+
 
     parser = argparse.ArgumentParser(description='OEIS grapher.')
 
@@ -116,7 +121,7 @@ def handle_cli_arguments():
     parser.add_argument("--dpi", help="Resolution in DPI (defaults to 600)",
                         default=600, type=int)
     parser.add_argument("--layout", help="Graph layout, choose from: {RANDOM, CIRCULAR, SHELL, FRUCHTERMAN-REINGOLD, SPRING, SPECTRAL} (defaults to SHELL)",
-                        default='SHELL', type=layout_type,) 
+                        default='SHELL', type=layout_type,)
 
     args = parser.parse_args()
     return args
@@ -133,8 +138,21 @@ if __name__ == "__main__":
 
     graph = adjust_crossreferences(docs)
 
-    nxgraph = make_nx_graph(graph, digraph=args.directed, )
+    nxgraph, edges = make_nx_graph(graph, digraph=args.directed, )
 
-    draw_nx_graph(nxgraph, filename=args.graphs_dir + args.filename, layout=args.layout)
+    cc = nx.strongly_connected_components(nxgraph)
+    #cc = nx.dominating_set(nxgraph, start_with='A000045')
+    #cc = nx.find_cliques(nxgraph)
 
-# }}}    
+    nodes = []
+    for c in cc:
+        color = format(math.floor(random.random()*16777215), '02x')
+        for node in c:
+            nodes.append("{} {{ color:#{} }}".format(node, color))
+
+    with open(args.graphs_dir + args.filename, "w") as f:
+        f.write("\n".join(edges + nodes))
+
+    #draw_nx_graph(nxgraph, filename=args.graphs_dir + args.filename, layout=args.layout)
+
+# }}}
