@@ -38,15 +38,34 @@ def make_nx_graph(graph, digraph=False,
 
     edge_symbol = '--'
     edges = []
+    reds, greens, blues = {}, {}, {}
     for seq_id, v in graph.items():
         for ref_seq_id in v['xref_as_set']:
             G.add_edge(seq_id, ref_seq_id)
             edges.append("{} {} {}".format(seq_id, edge_symbol, ref_seq_id))
 
+        red, green, blue = map(len, [v.get('comment',[]),
+                                     v.get('reference', []),
+                                     v.get('xref_as_set', [])])
+        reds[seq_id] = red
+        greens[seq_id] = green
+        blues[seq_id] = blue
+
+    max_red = max(reds.values())
+    reds = {k:(255*v/(max_red if max_red else 1)) for k,v in reds.items()}
+
+    max_green = max(greens.values())
+    greens = {k:(255*v/(max_green if max_green else 1)) for k,v in greens.items()}
+
+    max_blue = max(blues.values())
+    blues = {k:(255*v/(max_blue if max_blue else 1)) for k,v in blues.items()}
+
+    nodes = {k:(reds[k], greens[k], blues[k]) for k in reds.keys()}
+
     G.remove_nodes_from([n for n in G.nodes() if node_remp(n, G)])
     G.remove_edges_from([(u, v) for u, v in G.edges() if edge_remp(u, v, G)])
 
-    return G, edges
+    return G, nodes, edges
 
 def draw_nx_graph(  G, nodes_colors={},
                     filename=None, nodes_labels={}, dpi=600,
@@ -138,20 +157,30 @@ if __name__ == "__main__":
 
     graph = adjust_crossreferences(docs)
 
-    nxgraph, edges = make_nx_graph(graph, digraph=args.directed, )
+    nxgraph, nodes, edges = make_nx_graph(graph, digraph=args.directed, )
 
-    cc = nx.strongly_connected_components(nxgraph)
-    #cc = nx.dominating_set(nxgraph, start_with='A000045')
-    #cc = nx.find_cliques(nxgraph)
+    labels = []
+    for node, color in nodes.items():
+        r, g, b = color 
+        c = math.floor((.3*r + .59*g + .11*b) / 1)
+        labels.append("{} {{ color:#{:02X}{:02X}{:02X} }}".format(
+            node, math.floor(255-r), math.floor(255-g), math.floor(255-b)))
+            #node, math.floor(255-c), math.floor(255-c), math.floor(255-c)))
 
-    nodes = []
-    for c in cc:
-        color = format(math.floor(random.random()*16777215), '02x')
-        for node in c:
-            nodes.append("{} {{ color:#{} }}".format(node, color))
+    if False:
+        cc = nx.strongly_connected_components(nxgraph)
+        #cc = nx.dominating_set(nxgraph, start_with='A000045')
+        #cc = nx.find_cliques(nxgraph)
+
+        nodes = []
+        for c in cc:
+            color = format(math.floor(random.random()*16777215), '02x')
+            for node in c:
+                nodes.append("{} {{ color:#{} }}".format(node, color))
 
     with open(args.graphs_dir + args.filename, "w") as f:
-        f.write("\n".join(edges + nodes))
+        f.write("-> { color: #ffffff }\n")
+        f.write("\n".join(edges + labels))
 
     #draw_nx_graph(nxgraph, filename=args.graphs_dir + args.filename, layout=args.layout)
 
