@@ -18,6 +18,7 @@ def adjust_crossreferences(docs):
     for k, result in graph.items():
 
         xrefs = commons.cross_references(result['xref']) if 'xref' in result else set()
+        result['xref_complete'] = xrefs
 
         # finally, ensure `closed-world` property:
         result['xref_as_set'] = {xr for xr in xrefs if xr in graph}
@@ -40,27 +41,32 @@ def make_nx_graph(graph, digraph=False,
     edges = []
     reds, greens, blues = {}, {}, {}
     for seq_id, v in graph.items():
+
         for ref_seq_id in v['xref_as_set']:
             G.add_edge(seq_id, ref_seq_id)
             edges.append("{} {} {}".format(seq_id, edge_symbol, ref_seq_id))
 
-        red, green, blue = map(len, [v.get('comment',[]),
-                                     v.get('reference', []),
-                                     v.get('xref_as_set', [])])
-        reds[seq_id] = red
-        greens[seq_id] = green
-        blues[seq_id] = blue
+        comments, formulae, references, links, outgoing, incoming = map(
+            len, [v.get('comment',[]),
+                  v.get('formula', []),
+                  v.get('reference', []),
+                  v.get('link', []),
+                  v.get('xref_as_set', set()),
+                  v.get('referees', set())])
+        reds[seq_id] = comments + formulae
+        greens[seq_id] = references + links
+        blues[seq_id] = outgoing + incoming
 
-    max_red = max(reds.values())
-    reds = {k:(255*v/(max_red if max_red else 1)) for k,v in reds.items()}
+    max_red = max(reds.values(), default=1)
+    reds = {k:255*v/max_red for k,v in reds.items()}
 
-    max_green = max(greens.values())
-    greens = {k:(255*v/(max_green if max_green else 1)) for k,v in greens.items()}
+    max_green = max(greens.values(), default=1)
+    greens = {k:255*v/max_green for k,v in greens.items()}
 
-    max_blue = max(blues.values())
-    blues = {k:(255*v/(max_blue if max_blue else 1)) for k,v in blues.items()}
+    max_blue = max(blues.values(), default=1)
+    blues = {k:255*v/max_blue for k,v in blues.items()}
 
-    nodes = {k:(reds[k], greens[k], blues[k]) for k in reds.keys()}
+    nodes = {k:(reds[k], greens[k], blues[k]) for k in graph.keys()}
 
     G.remove_nodes_from([n for n in G.nodes() if node_remp(n, G)])
     G.remove_edges_from([(u, v) for u, v in G.edges() if edge_remp(u, v, G)])
