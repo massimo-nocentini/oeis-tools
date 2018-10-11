@@ -1,0 +1,12 @@
+$ python3.6 crawling.py
+30 sequences in cache ./fetched/
+289 sequences in fringe for restarting
+$ ls fetched/
+A000045.json    A000245.json    A000753.json    A003519.json
+A009766.json    A032443.json    A094216.json    A099039.json
+A120303.json    A176137.json    A000108.json    A000344.json
+A002390.json    A006480.json    A014137.json    A046161.json
+A094639.json    A106566.json    A129763.json    A211611.json
+A000142.json    A000736.json    A003518.json    A008276.json
+A032357.json    A048990.json    A098597.json    A120274.json
+A137697.json    A264663.json

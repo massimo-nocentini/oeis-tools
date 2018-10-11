@@ -1,0 +1,71 @@
+
+\documentclass[a4paper]{article}
+
+% Just some sample text
+\usepackage{lipsum}
+
+%%
+% For nicely typeset tabular material
+\usepackage{booktabs}
+
+%%
+% For graphics / images
+\usepackage{graphicx}
+\setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
+\graphicspath{{graphics/}}
+
+% The fancyvrb package lets us customize the formatting of verbatim
+% environments.  We use a slightly smaller font.
+\usepackage{fancyvrb}
+\fvset{fontsize=\normalsize}
+
+
+\usepackage{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{euler}
+\usepackage{fontspec}
+\usepackage{newtxtext}
+\usepackage{caption}
+\usepackage{xspace} % Prints a trailing space in a smart way.
+\usepackage{url}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{acronym}
+\usepackage{hyperref}
+\usepackage{tabu}
+\usepackage{rotating}
+\usepackage{mathdots}
+\usepackage{minted}
+\usepackage{units}
+\usepackage{makeidx}
+\usepackage{float}
+\usepackage[sort&compress,square,comma,authoryear]{natbib}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{example}[theorem]{Example}
+
+\setmonofont[Scale=0.8]{Menlo}
+%\hypersetup{colorlinks}
+\usemintedstyle{xcode}
+
+\title{Crawling, (pretty) printing and graphing the OEIS}
+\author{Massimo Nocentini and Donatella Merlini}
+
+\begin{document}
+
+
+\maketitle
+
+\input{OEIS/oeis.tex}
+
+\bibliographystyle{plainnat}
+\bibliography{oeis}
+
+\end{document}

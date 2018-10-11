@@ -1,0 +1,38 @@
+$ python3.6 pprinting.py        \
+    --most-recent ACCESS        \
+    --data-only                 \ 
+    --max-results 3             \
+    --upper-limit '{"list":10}'
+
+ A001044 - a(n) = (n!)^2.
+
+by _N. J. A. Sloane_, _R. K. Guy_
+
+_Keywords_: `nonn,easy,nice`
+
+_Data_:
+[1  1  4  36  576  14400  518400  25401600  1625702400  131681894400]
+
+________________________________________________________________________
+
+ A048990 - Catalan numbers with even index (A000108(2*n), n >= 0): a(n)
+  = binomial(4*n, 2*n)/(2*n+1).
+
+by _Wolfdieter Lang_
+
+_Keywords_: `easy,nonn`
+
+_Data_:
+[1  2  14  132  1430  16796  208012  2674440  35357670  477638700]
+
+________________________________________________________________________
+
+ A014138 - Partial sums of (Catalan numbers starting 1, 2, 5, ...).
+
+by _N. J. A. Sloane_
+
+_Keywords_: `nonn,nice`
+
+_Data_:
+[0  1  3  8  22  64  196  625  2055  6917]
+

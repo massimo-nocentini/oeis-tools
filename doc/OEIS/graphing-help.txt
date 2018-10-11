@@ -1,0 +1,21 @@
+$ python3.6 graphing.py -h
+usage: graphing.py [-h] [--directed] [--cache-dir CACHE_DIR]
+                   [--graphs-dir GRAPHS_DIR] [--dpi DPI] [--layout LAYOUT]
+                   F
+
+OEIS grapher.
+
+positional arguments:
+  F                     Save image in file F.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --directed            Draw directed edges
+  --cache-dir CACHE_DIR
+                        Cache directory (defaults to ./fetched/)
+  --graphs-dir GRAPHS_DIR
+                        Graphs directory (defaults to ./graphs/)
+  --dpi DPI             Resolution in DPI (defaults to 600)
+  --layout LAYOUT       Graph layout, choose from: {RANDOM, CIRCULAR, SHELL,
+                        FRUCHTERMAN-REINGOLD, SPRING, SPECTRAL} (defaults to
+                        SHELL)
