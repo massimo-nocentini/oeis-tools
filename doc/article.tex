@@ -1,5 +1,5 @@
 
-\documentclass[a4paper]{article}
+\documentclass[a4paper,11pt]{article}
 
 % Just some sample text
 \usepackage{lipsum}
@@ -56,12 +56,23 @@
 \usemintedstyle{xcode}
 
 \title{Crawling, (pretty) printing and graphing the OEIS}
-\author{Massimo Nocentini and Donatella Merlini}
+\author{Massimo Nocentini and Donatella Merlini\\\\
+Dipartimento di Statistica, Informatica, Applicazioni\\
+Universit\`a di Firenze}
+
+\textwidth 16cm \textheight 23cm \topmargin -1cm \oddsidemargin 0cm
 
 \begin{document}
 
-
 \maketitle
+
+\abstract{In this paper we present a suite of software tools that allows us to
+interact with the \textit{Online Encyclopedia of Integer Sequences}; in
+particular, (i)~a \textit{crawler} fetches sequences recursively with respect
+to their relations, (ii)~a \textit{pretty printer} represents the same data
+stored in the archive using two different formats, namely the old console and
+modern Jupyter notebooks, (iii)~a \textit{grapher} shows connections among
+sequences by using graph structures.}
 
 \input{OEIS/oeis.tex}
 

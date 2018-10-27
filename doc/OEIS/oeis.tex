@@ -1,18 +1,23 @@
 
+\section{Introduction}
+
 The \textit{Online Encyclopedia of Integer Sequences} \citep{OEIS} is an online
 database of sequences of numbers that collects any kind of data regarding them.
 It was founded by N.~J.~A.~Sloane in $1964$ and since then has been, and
 continue to be, updated constantly by contributions of many users. Despite of
 its powerful searching mechanisms, starting at \url{https://oeis.org/} and
-shown in Figure \ref{fig:oeis:page}, we design a parallel \textit{suite of
-software tools} that satisfies the necessities (i)~to search the OEIS offline
-by downloading repeated searches, (ii)~to work in the console to use
-programming facilities to manipulate contents more effectively and (iii)~to
-interface with third-party software.
+shown in Figure \ref{fig:oeis:page} which reports results about the well known
+sequence of Fibonacci numbers (see e.g.  \citep{ConcreteMath}), we design a
+parallel \textit{suite of software tools} that satisfies the necessities (i)~to
+search the OEIS offline by downloading repeated searches, (ii)~to work in the
+console to use programming facilities to manipulate contents more effectively
+and (iii)~to interface with third-party software.
 
 \begin{figure}
-\includegraphics[width=15cm]{OEIS/oeis-page}
-\caption{The OEIS search page.}
+\centering
+\includegraphics{OEIS/oeis-page}
+\caption{The OEIS search page: the present snapshot shows search
+results about the sequence of Fibonacci numbers }
 \label{fig:oeis:page}
 \end{figure}
 
@@ -21,7 +26,7 @@ Looking for similar approaches in the recent literature,
 discussing how to store, compare and match integer sequences toward the
 formalization of some conjectures; on the other hand, searching the word
 "\textit{oeis}" in GitHub returns one hundred repositories, the majority of
-them (i)~host simple implementations of scripts that download data about a
+them host simple implementations of scripts that download data about a
 given sequence, targeting all major programming languages. Moreover,
 \citep{weidmann:sequencer} is a project that identifies number sequences given
 a list of numbers and gives a formula that generates them.
@@ -30,6 +35,12 @@ Our approach complements the former ones because it provides a
 \textit{recursive} and \textit{asynchronous} fetching process, vanilla data
 storage in JSON files and visualization of sequences' relations; the
 description of each tool is addressed in the following sections, respectively.
+
+The present suite of tools had been shown at an open school on
+Combinatorial Method in the analysis of Algorithms and Data Structures
+in Korea \citep{Nocentini:korea}; moreover, all the sources that
+implements the applications can be found online in the repository
+\url{https://github.com/massimo-nocentini/oeis-tools}.
 
 \section{The Crawler}
 
@@ -54,7 +65,9 @@ The script presents a help message to explain itself:
 \begin{example}
 We illustrate a typical session where we start from scratch. First of all, we
 want to download the OEIS content about two important and nice sequences,
-namely those corresponding to the Fibonacci and Catalan numbers, respectively:
+namely those corresponding to the Fibonacci and Catalan numbers (see e.g.
+\citep{ConcreteMath,stanley:2015}), known in the OEIS by identifiers $A000045$ and
+$A000108$, respectively:
 \VerbatimInput[fontsize=\small]{OEIS/crawler-fetching-command.txt}
 After stopping the crawler, we check the content of cache with the commands
 \VerbatimInput[fontsize=\small]{OEIS/crawler-status.txt} which tell us that
@@ -279,9 +292,10 @@ finally, the more we crawl, the more graphs are effective and accurate.
 \end{remark}
 
 \begin{figure}
+\centering
 \begin{sideways}
 %\includegraphics[width=20cm, height=20cm]{OEIS/labels}
-\includegraphics[width=20cm, height=30cm]{OEIS/coloured}
+\includegraphics[width=20cm, height=35cm]{OEIS/coloured}
 \end{sideways}
 \caption{Sequences network with labelel vertices, here we see that the sequence
 of \textit{Fibonacci numbers} (\url{https://oeis.org/A000045}) and of
@@ -299,7 +313,7 @@ set} using the \textit{red} color.
 \end{example}
 
 \begin{figure}
-\hspace{-3cm}
+\hspace{-2cm}
 \includegraphics[width=20cm, height=20cm]{OEIS/circular}
 \caption{A bigger sequences network composed of $419$ sequences; here the
 sequence of \textit{Fibonacci numbers} is denoted by $\alpha$ and the sequence
@@ -309,7 +323,7 @@ of \textit{Catalan numbers} is denoted by $\beta$, respectively.}
 
 \section*{Conclusions}
 
-This chapter presents a suite of tools that interacts with the \textit{Online
+This paper presents a suite of tools that interacts with the \textit{Online
 Encyclopedia of Integer Sequences}, whose primary goal is to automate simple
 and repetitive operations such as (i)~crawling sequences to hold a local copy
 stored in JSON files, (ii)~pretty printing data with filtering capabilities,
@@ -328,6 +342,10 @@ click on a vertex triggers the execution of the fetching process (unless it has
 been downloaded already) and the new connections are added to the network
 dynamically.
 
+We wish to point out that the suite of tools presented in this work, the
+\textit{grapher} in particular, could be used to mine the graph structures
+for study regularities and patterns among sequences which looks an interesting
+research activity.
 
 
 
