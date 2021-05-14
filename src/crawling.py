@@ -1,5 +1,5 @@
 
-import socket, json, re, os, sys, logging, asyncio
+import socket, json, re, os, sys, logging, asyncio, time
 
 from contextlib import suppress
 from functools import wraps, partial
@@ -72,6 +72,8 @@ class fetcher:
         self.response = await self.read_all()
 
         self.sock.close()
+
+        time.sleep(0.1)
 
         return self.done(self.url, self.response.decode('utf8'))
 
